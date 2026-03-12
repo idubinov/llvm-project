@@ -2659,24 +2659,21 @@ static bool buildNDRange(const SPIRV::IncomingCall *Call,
   const unsigned AddressModelBits = GR->getPointerSize();
   assert(AddressModelBits == 64 || AddressModelBits == 32);
 
-
   // The dimension is encoded in the function name as "ndrange_XD" where X is
   // 1, 2, or 3.
   unsigned Dimension = atoi(Call->Builtin->Name.substr(8, 1).data());
   assert(Dimension <= 3 && Dimension >= 1);
 
-
-  // Get work size type; When fewer than 4 arguments are provided, build a zero constant for the
-  // missing one.
+  // Get work size type; When fewer than 4 arguments are provided, build a zero
+  // constant for the missing one.
   SPIRVTypeInst SpvFieldTy;
   Register ConstZero;
   if (Dimension == 1) {
-    SpvFieldTy =
-        GR->getSPIRVTypeForVReg(Call->Arguments[GlobalWorkSizeArgIdx]);
+    SpvFieldTy = GR->getSPIRVTypeForVReg(Call->Arguments[GlobalWorkSizeArgIdx]);
     assert(SpvFieldTy && SpvFieldTy->getOpcode() == SPIRV::OpTypeInt &&
-            "Expected scalar integer type");
+           "Expected scalar integer type");
 
-    if (NumArgs < 4) 
+    if (NumArgs < 4)
       ConstZero = GR->buildConstantInt(0, MIRBuilder, SpvFieldTy, true);
   } else {
     Type *BaseTy =
@@ -2694,7 +2691,6 @@ static bool buildNDRange(const SPIRV::IncomingCall *Call,
                                                SpvFieldTy, *ST.getInstrInfo());
     }
   }
-
 
   Register GlobalWorkSize;
   Register LocalWorkSize;
