@@ -51,7 +51,7 @@ protected:
   const GCNSubtarget *ST = nullptr;
   const SIInstrInfo *TII = nullptr;
   MachineRegisterInfo::VRegAttrs LaneMaskRegAttrs;
-  const AMDGPU::LaneMaskConstants &LMC;
+  const AMDGPU::LaneMaskConstants *LMC = nullptr;
 
 #ifndef NDEBUG
   DenseSet<Register> PhiRegisters;
