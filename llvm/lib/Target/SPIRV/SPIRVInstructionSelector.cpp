@@ -192,7 +192,7 @@ private:
   bool selectBitreverse16(Register ResVReg, SPIRVTypeInst ResType,
                           MachineInstr &I, Register Op) const;
 
-  bool selectBitreverse32(Register ResVReg, SPIRVTypeInst ResType,
+  bool selectBitreverseNative(Register ResVReg, SPIRVTypeInst ResType,
                           MachineInstr &I, Register Op) const;
 
   bool selectBuildVector(Register ResVReg, SPIRVTypeInst ResType,
@@ -3226,7 +3226,7 @@ bool SPIRVInstructionSelector::selectBitreverse16(Register ResVReg,
 
   // Perform bitreverse on the i32 value
   Register BitrevReg = MRI->createVirtualRegister(GR.getRegClass(Int32Type));
-  if (!selectBitreverse32(BitrevReg, Int32Type, I, ExtReg))
+  if (!selectBitreverseNative(BitrevReg, Int32Type, I, ExtReg))
     return false;
 
   // Shift the bit-reversed value to get the final result.
@@ -3239,7 +3239,7 @@ bool SPIRVInstructionSelector::selectBitreverse16(Register ResVReg,
   return selectOpWithSrcs(ResVReg, ResType, I, {ShiftReg}, ExtendOpcode);
 }
 
-bool SPIRVInstructionSelector::selectBitreverse32(Register ResVReg,
+bool SPIRVInstructionSelector::selectBitreverseNative(Register ResVReg,
                                                   SPIRVTypeInst ResType,
                                                   MachineInstr &I,
                                                   Register Op) const {
@@ -3263,19 +3263,12 @@ bool SPIRVInstructionSelector::selectBitreverse(Register ResVReg,
     case 16:
       return selectBitreverse16(ResVReg, ResType, I, OpReg);
     default:
-      return selectBitreverse32(ResVReg, ResType, I, OpReg);
+      return selectBitreverseNative(ResVReg, ResType, I, OpReg);
     }
   }
 
-  if (STI.canUseExtension(SPIRV::Extension::SPV_KHR_bit_instructions)) {
-    MachineBasicBlock &BB = *I.getParent();
-    BuildMI(BB, I, I.getDebugLoc(), TII.get(SPIRV::OpBitReverse))
-        .addDef(ResVReg)
-        .addUse(GR.getSPIRVTypeID(ResType))
-        .addUse(OpReg)
-        .constrainAllUses(TII, TRI, RBI);
-    return true;
-  }
+  if (STI.canUseExtension(SPIRV::Extension::SPV_KHR_bit_instructions))
+    return selectBitreverseNative(ResVReg, ResType, I, OpReg);
 
   // Emulate bitreverse using bit manipulation operations
   // // swap odd and even bits
