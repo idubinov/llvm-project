@@ -193,7 +193,7 @@ private:
                           MachineInstr &I, Register Op) const;
 
   bool selectBitreverseNative(Register ResVReg, SPIRVTypeInst ResType,
-                          MachineInstr &I, Register Op) const;
+                              MachineInstr &I, Register Op) const;
 
   bool selectBuildVector(Register ResVReg, SPIRVTypeInst ResType,
                          MachineInstr &I) const;
@@ -3240,9 +3240,9 @@ bool SPIRVInstructionSelector::selectBitreverse16(Register ResVReg,
 }
 
 bool SPIRVInstructionSelector::selectBitreverseNative(Register ResVReg,
-                                                  SPIRVTypeInst ResType,
-                                                  MachineInstr &I,
-                                                  Register Op) const {
+                                                      SPIRVTypeInst ResType,
+                                                      MachineInstr &I,
+                                                      Register Op) const {
   MachineBasicBlock &BB = *I.getParent();
   BuildMI(BB, I, I.getDebugLoc(), TII.get(SPIRV::OpBitReverse))
       .addDef(ResVReg)
