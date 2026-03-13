@@ -3288,7 +3288,7 @@ bool SPIRVInstructionSelector::selectBitreverse(Register ResVReg,
 
   unsigned BitWidth = GR.getScalarOrVectorBitWidth(ResType);
 
-  if ((BitWidth & (BitWidth - 1)) != 0 || BitWidth < 8 || BitWidth > 64)
+  if (BitWidth != 8 && BitWidth != 16 && BitWidth != 32 && BitWidth != 64)
     return false; // Only support 8, 16, 32, and 64-bit widths
 
   MachineBasicBlock &BB = *I.getParent();
@@ -3302,7 +3302,6 @@ bool SPIRVInstructionSelector::selectBitreverse(Register ResVReg,
   unsigned ShrOp =
       (N > 1) ? SPIRV::OpShiftRightLogicalV : SPIRV::OpShiftRightLogicalS;
 
-  // Helper to create constant (scalar or vector composite)
   auto CreateConst = [&](uint64_t Value) -> Register {
     Register ScalarConst = GR.getOrCreateConstInt(Value, I, IntType, TII);
     if (N == 1)
