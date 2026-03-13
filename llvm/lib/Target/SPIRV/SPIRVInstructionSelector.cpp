@@ -3256,13 +3256,133 @@ bool SPIRVInstructionSelector::selectBitreverse(Register ResVReg,
                                                 SPIRVTypeInst ResType,
                                                 MachineInstr &I) const {
   Register OpReg = I.getOperand(1).getReg();
-  SPIRVTypeInst OpType = GR.getSPIRVTypeForVReg(OpReg);
-  switch (GR.getScalarOrVectorBitWidth(OpType)) {
-  case 16:
-    return selectBitreverse16(ResVReg, ResType, I, OpReg);
-  default:
-    return selectBitreverse32(ResVReg, ResType, I, OpReg);
+
+  if (STI.isShader()) {
+    SPIRVTypeInst OpType = GR.getSPIRVTypeForVReg(OpReg);
+    switch (GR.getScalarOrVectorBitWidth(ResType)) {
+    case 16:
+      return selectBitreverse16(ResVReg, ResType, I, OpReg);
+    default:
+      return selectBitreverse32(ResVReg, ResType, I, OpReg);
+    }
   }
+
+  if (STI.canUseExtension(SPIRV::Extension::SPV_KHR_bit_instructions)) {
+    MachineBasicBlock &BB = *I.getParent();
+    BuildMI(BB, I, I.getDebugLoc(), TII.get(SPIRV::OpBitReverse))
+        .addDef(ResVReg)
+        .addUse(GR.getSPIRVTypeID(ResType))
+        .addUse(OpReg)
+        .constrainAllUses(TII, TRI, RBI);
+    return true;
+  }
+
+  // Emulate bitreverse using bit manipulation operations
+  // // swap odd and even bits
+  // v=((v>>1)&0x55555555)|((v&0x55555555)<<1);
+  // // swap pairs
+  // v=((v>>2) & 0x33333333)|((v&0x33333333)<<2);
+  // // swap nibbles
+  // <...>
+  // Algo: https://graphics.stanford.edu/~seander/bithacks.html#ReverseParallel
+
+  unsigned BitWidth = GR.getScalarOrVectorBitWidth(ResType);
+
+  if ((BitWidth & (BitWidth - 1)) != 0 || BitWidth < 8 || BitWidth > 64)
+    return false; // Only support 8, 16, 32, and 64-bit widths
+
+  MachineBasicBlock &BB = *I.getParent();
+  const unsigned N = GR.getScalarOrVectorComponentCount(ResType);
+  SPIRVTypeInst IntType = GR.retrieveScalarOrVectorIntType(ResType);
+
+  unsigned AndOp = (N > 1) ? SPIRV::OpBitwiseAndV : SPIRV::OpBitwiseAndS;
+  unsigned OrOp = (N > 1) ? SPIRV::OpBitwiseOrV : SPIRV::OpBitwiseOrS;
+  unsigned ShlOp =
+      (N > 1) ? SPIRV::OpShiftLeftLogicalV : SPIRV::OpShiftLeftLogicalS;
+  unsigned ShrOp =
+      (N > 1) ? SPIRV::OpShiftRightLogicalV : SPIRV::OpShiftRightLogicalS;
+
+  // Helper to create constant (scalar or vector composite)
+  auto CreateConst = [&](uint64_t Value) -> Register {
+    Register ScalarConst = GR.getOrCreateConstInt(Value, I, IntType, TII);
+    if (N == 1)
+      return ScalarConst;
+
+    // Create vector composite constant
+    SPIRVTypeInst VecType = (N > 1) ? ResType : IntType;
+    Register CompositeReg = MRI->createVirtualRegister(GR.getRegClass(VecType));
+    auto MIB =
+        BuildMI(BB, I, I.getDebugLoc(), TII.get(SPIRV::OpConstantComposite))
+            .addDef(CompositeReg)
+            .addUse(GR.getSPIRVTypeID(VecType));
+    for (unsigned It = 0; It < N; ++It)
+      MIB.addUse(ScalarConst);
+    MIB.constrainAllUses(TII, TRI, RBI);
+    return CompositeReg;
+  };
+
+  // Helper, one swap step: ((x>>shift)&mask)|((x&mask)<<shift)
+  auto SwapBits = [&](Register Input, uint64_t Mask,
+                      unsigned Shift) -> Register {
+    Register MaskReg = CreateConst(Mask);
+    Register ShiftReg = CreateConst(Shift);
+    Register T1 = MRI->createVirtualRegister(GR.getRegClass(ResType));
+    Register T2 = MRI->createVirtualRegister(GR.getRegClass(ResType));
+    Register T3 = MRI->createVirtualRegister(GR.getRegClass(ResType));
+    Register T4 = MRI->createVirtualRegister(GR.getRegClass(ResType));
+    Register Result = MRI->createVirtualRegister(GR.getRegClass(ResType));
+
+    if (!selectOpWithSrcs(T1, ResType, I, {Input, ShiftReg}, ShrOp) ||
+        !selectOpWithSrcs(T2, ResType, I, {T1, MaskReg}, AndOp) ||
+        !selectOpWithSrcs(T3, ResType, I, {Input, MaskReg}, AndOp) ||
+        !selectOpWithSrcs(T4, ResType, I, {T3, ShiftReg}, ShlOp) ||
+        !selectOpWithSrcs(Result, ResType, I, {T2, T4}, OrOp))
+      return Register();
+
+    return Result;
+  };
+
+  // Helper, compute mask, avoid UB 1ULL<<64
+  auto GetMask = [&](uint64_t FullMask) -> uint64_t {
+    return (BitWidth == 64) ? FullMask : FullMask & ((1ULL << BitWidth) - 1);
+  };
+
+  // 1. Swap bits
+  Register Result = SwapBits(OpReg, GetMask(0x5555555555555555ULL), 1);
+  if (!Result.isValid())
+    return false;
+
+  if (BitWidth >= 4) { // 2. Swap pairs
+    Result = SwapBits(Result, GetMask(0x3333333333333333ULL), 2);
+    if (!Result.isValid())
+      return false;
+  }
+
+  if (BitWidth >= 8) { // 3. Swap nibbles
+    Result = SwapBits(Result, GetMask(0x0F0F0F0F0F0F0F0FULL), 4);
+    if (!Result.isValid())
+      return false;
+  }
+
+  if (BitWidth >= 16) { // 4. Swap bytes
+    Result = SwapBits(Result, GetMask(0x00FF00FF00FF00FFULL), 8);
+    if (!Result.isValid())
+      return false;
+  }
+
+  if (BitWidth >= 32) { // 5.Swap words
+    Result = SwapBits(Result, GetMask(0x0000FFFF0000FFFFULL), 16);
+    if (!Result.isValid())
+      return false;
+  }
+
+  if (BitWidth == 64) { // 6. Swap dwords
+    Result = SwapBits(Result, 0x00000000FFFFFFFFULL, 32);
+    if (!Result.isValid())
+      return false;
+  }
+
+  return BuildCOPY(ResVReg, Result, I);
 }
 
 bool SPIRVInstructionSelector::selectFreeze(Register ResVReg,
