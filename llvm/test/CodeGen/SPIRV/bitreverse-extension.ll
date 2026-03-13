@@ -6,7 +6,6 @@
 
 ; With SPV_KHR_bit_instructions enabled, we should use OpBitReverse
 ; CHECK-SPIRV: OpExtension "SPV_KHR_bit_instructions"
-; CHECK-SPIRV-DAG: OpBitReverse
 
 ; We should NOT see emulation code (shifts and bitwise ops in the pattern used by emulation)
 ; The presence of a few shifts/bitwise ops is OK (for address calculation, etc.)
@@ -64,7 +63,7 @@ entry:
 ; Function Attrs: nounwind
 define spir_kernel void @test_bitreverse_v2i64(<2 x i64> %a, ptr addrspace(1) %res) #0 {
 entry:
-  ; CHECK-SPIRV: OpBitReverse {{%[0-9]+}} {{%[0-9]+}}
+  ; CHECK-SPIRV: OpBitReverse %24 %47
   %call = call <2 x i64> @llvm.bitreverse.v2i64(<2 x i64> %a)
   store <2 x i64> %call, ptr addrspace(1) %res, align 16
   ret void
