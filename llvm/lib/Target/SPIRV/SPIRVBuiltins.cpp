@@ -2624,16 +2624,21 @@ static bool buildNDRange(const SPIRV::IncomingCall *Call,
   // variants, accepting 1 to 3 arguments:
   //   (global_work_size)
   //   (global_work_size, local_work_size)
-  //   (global_work_offset, global_work_size, local_work_size)  -- note the
-  //   argument reordering when max arguments presented
-  // The function can return data throught sret argument on position 0, while function return value is void - in that case other argument indexes should be adjusted accordingly. 
+  //   (global_work_offset, global_work_size, local_work_size)
+  // Note: When all three arguments are provided, they are reordered compared
+  // to the one- or two-argument form.
   //
-  // SPIR-V's OpBuildNDRange takes all three arguments (GlobalWorkSize,
-  // LocalWorkSize, GlobalWorkOffset). For 1D kernels the values are scalars;
-  // for 2D/3D they are arrays of 2 or 3 elements. Any missing argument is
-  // set to zero.
-  // 
-  // Lets calculate argument indexes based on that info:
+  // The function may return data through an sret argument at position 0 (with
+  // a void function return type). When present, all other argument indices are
+  // adjusted accordingly.
+  //
+  // SPIR-V's OpBuildNDRange requires all three arguments (GlobalWorkSize,
+  // LocalWorkSize, GlobalWorkOffset). For 1D kernels, the values are scalars;
+  // for 2D/3D kernels, they are arrays of 2 or 3 elements. Missing arguments
+  // default to zero.
+  //
+  // Calculate argument indices based on the number of arguments and presence
+  // of sret:
   unsigned NumArgs = Call->Arguments.size();
   const unsigned maxArgs = Call->Builtin->MaxNumArgs;
   const unsigned IncorrectArgIdx = maxArgs + 1;
@@ -2643,10 +2648,14 @@ static bool buildNDRange(const SPIRV::IncomingCall *Call,
 
   const unsigned SRetArgIdx = hasSRetArg ? 0 : IncorrectArgIdx;
   const unsigned ArgBase = hasSRetArg ? 1 : 0;
-  const unsigned GlobalWorkSizeArgIdx = NumArgs < maxArgs ? ArgBase : ArgBase + 1;
+  const unsigned GlobalWorkSizeArgIdx =
+      NumArgs < maxArgs ? ArgBase : ArgBase + 1;
   const unsigned LocalWorkSizeArgIdx =
-      (NumArgs - ArgBase == 1) ? IncorrectArgIdx : (NumArgs == maxArgs ? ArgBase + 2 : ArgBase + 1);
-  const unsigned GlobalWorkOffsetArgIdx = NumArgs == maxArgs ? ArgBase : IncorrectArgIdx;
+      (NumArgs - ArgBase == 1)
+          ? IncorrectArgIdx
+          : (NumArgs == maxArgs ? ArgBase + 2 : ArgBase + 1);
+  const unsigned GlobalWorkOffsetArgIdx =
+      NumArgs == maxArgs ? ArgBase : IncorrectArgIdx;
 
   // Each nd_range field is an array of <Dimension> integers matching the
   // address model width (32 or 64 bits).
@@ -2658,8 +2667,8 @@ static bool buildNDRange(const SPIRV::IncomingCall *Call,
   unsigned Dimension = atoi(Call->Builtin->Name.substr(8, 1).data());
   assert(Dimension <= 3 && Dimension >= 1);
 
-  // Get work size type; When fewer than 4 arguments are provided, build a zero
-  // constant for the missing one.
+  // Determine the work size type based on the dimension. For missing arguments,
+  // create a zero constant of the appropriate type.
   MachineFunction &MF = MIRBuilder.getMF();
   SPIRVTypeInst SpvFieldTy;
   Register ConstZero;
@@ -2718,17 +2727,17 @@ static bool buildNDRange(const SPIRV::IncomingCall *Call,
 
   if (!hasSRetArg) {
     return MIRBuilder.buildInstr(SPIRV::OpBuildNDRange)
-          .addDef(Call->ReturnRegister)
-          .addUse(GR->getSPIRVTypeID(Call->ReturnType))
-          .addUse(GlobalWorkSize)
-          .addUse(LocalWorkSize)
-          .addUse(GlobalWorkOffset);
+        .addDef(Call->ReturnRegister)
+        .addUse(GR->getSPIRVTypeID(Call->ReturnType))
+        .addUse(GlobalWorkSize)
+        .addUse(LocalWorkSize)
+        .addUse(GlobalWorkOffset);
   }
 
-  // SRet argument presented - return type is the nd_range struct pointed to by the first argument.
+  // When sret is used, store nd_range struct through the pointer in the first
+  // argument.
   Register SRetReg = Call->Arguments[SRetArgIdx];
-  SPIRVTypeInst SRetPtrType =
-      GR->getSPIRVTypeForVReg(SRetReg);
+  SPIRVTypeInst SRetPtrType = GR->getSPIRVTypeForVReg(SRetReg);
   SPIRVTypeInst SRetType = GR->getPointeeType(SRetPtrType);
 
   Register TmpReg = MRI->createVirtualRegister(&SPIRV::iIDRegClass);
