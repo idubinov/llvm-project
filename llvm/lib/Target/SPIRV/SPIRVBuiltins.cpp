@@ -2664,7 +2664,8 @@ static bool buildNDRange(const SPIRV::IncomingCall *Call,
 
   // The dimension is encoded in the function name as "ndrange_XD" where X is
   // 1, 2, or 3.
-  unsigned Dimension = atoi(Call->Builtin->Name.substr(8, 1).data());
+  unsigned Dimension = 0;
+  Call->Builtin->Name.substr(8, 1).getAsInteger(10, Dimension);
   assert(Dimension <= 3 && Dimension >= 1);
 
   // Determine the work size type based on the dimension. For missing arguments,
