@@ -3270,12 +3270,12 @@ bool SPIRVInstructionSelector::selectBitreverse(Register ResVReg,
   if (STI.canUseExtension(SPIRV::Extension::SPV_KHR_bit_instructions))
     return selectBitreverseNative(ResVReg, ResType, I, OpReg);
 
-  // Emulate bitreverse using bit manipulation operations
+  // Expansion bitreverse using bit manipulation operations
   // Algo: https://graphics.stanford.edu/~seander/bithacks.html#ReverseParallel
   const unsigned BitWidth = GR.getScalarOrVectorBitWidth(ResType);
   bool BitWidthIsPowerOfTwo = !(BitWidth & (BitWidth - 1));
   if (BitWidth <= 64 && !(BitWidth && BitWidthIsPowerOfTwo))
-    return false; // Only support <= 64-bit power of 2 widths
+    return false;
 
   const unsigned N = GR.getScalarOrVectorComponentCount(ResType);
 
