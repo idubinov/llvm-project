@@ -443,26 +443,11 @@ bool Vreg1LoweringHelper::lowerCopiesFromI1() {
 PhiLoweringHelper::PhiLoweringHelper(MachineFunction *MF,
                                      MachineDominatorTree *DT,
                                      MachinePostDominatorTree *PDT)
-    : MF(MF), DT(DT), PDT(PDT),
-      LMC(AMDGPU::LaneMaskConstants::get(MF->getSubtarget<GCNSubtarget>())) {
+    : MF(MF), DT(DT), PDT(PDT), ST(&MF->getSubtarget<GCNSubtarget>()),
+      LMC(&AMDGPU::LaneMaskConstants::get(*ST)) {
   MRI = &MF->getRegInfo();
 
-  ST = &MF->getSubtarget<GCNSubtarget>();
   TII = ST->getInstrInfo();
-}
-
-static void instrDefsUsesSCC(const MachineInstr &MI, bool &Def, bool &Use) {
-  Def = false;
-  Use = false;
-
-  for (const MachineOperand &MO : MI.operands()) {
-    if (MO.isReg() && MO.getReg() == AMDGPU::SCC) {
-      if (MO.isUse())
-        Use = true;
-      else
-        Def = true;
-    }
-  }
 }
 
 /// Move instruction to a new position inside the same MBB, if there is no
@@ -793,7 +778,7 @@ bool PhiLoweringHelper::isConstantLaneMask(Register Reg, bool &Val) const {
       return false;
   }
 
-  if (MI->getOpcode() != LMC.MovOpc)
+  if (MI->getOpcode() != LMC->MovOpc)
     return false;
 
   if (!MI->getOperand(1).isImm())
@@ -897,10 +882,10 @@ void Vreg1LoweringHelper::buildMergeLaneMasks(MachineBasicBlock &MBB,
     if (PrevVal == CurVal) {
       BuildMI(MBB, I, DL, TII->get(AMDGPU::COPY), DstReg).addReg(CurReg);
     } else if (CurVal) {
-      BuildMI(MBB, I, DL, TII->get(AMDGPU::COPY), DstReg).addReg(LMC.ExecReg);
+      BuildMI(MBB, I, DL, TII->get(AMDGPU::COPY), DstReg).addReg(LMC->ExecReg);
     } else {
-      BuildMI(MBB, I, DL, TII->get(LMC.XorOpc), DstReg)
-          .addReg(LMC.ExecReg)
+      BuildMI(MBB, I, DL, TII->get(LMC->XorOpc), DstReg)
+          .addReg(LMC->ExecReg)
           .addImm(-1);
     }
     return;
@@ -913,9 +898,9 @@ void Vreg1LoweringHelper::buildMergeLaneMasks(MachineBasicBlock &MBB,
       PrevMaskedReg = PrevReg;
     } else {
       PrevMaskedReg = createLaneMaskReg(MRI, LaneMaskRegAttrs);
-      BuildMI(MBB, I, DL, TII->get(LMC.AndN2Opc), PrevMaskedReg)
+      BuildMI(MBB, I, DL, TII->get(LMC->AndN2Opc), PrevMaskedReg)
           .addReg(PrevReg)
-          .addReg(LMC.ExecReg);
+          .addReg(LMC->ExecReg);
     }
   }
   if (!CurConstant) {
@@ -924,9 +909,9 @@ void Vreg1LoweringHelper::buildMergeLaneMasks(MachineBasicBlock &MBB,
       CurMaskedReg = CurReg;
     } else {
       CurMaskedReg = createLaneMaskReg(MRI, LaneMaskRegAttrs);
-      BuildMI(MBB, I, DL, TII->get(LMC.AndOpc), CurMaskedReg)
+      BuildMI(MBB, I, DL, TII->get(LMC->AndOpc), CurMaskedReg)
           .addReg(CurReg)
-          .addReg(LMC.ExecReg);
+          .addReg(LMC->ExecReg);
     }
   }
 
@@ -937,13 +922,13 @@ void Vreg1LoweringHelper::buildMergeLaneMasks(MachineBasicBlock &MBB,
     BuildMI(MBB, I, DL, TII->get(AMDGPU::COPY), DstReg)
         .addReg(PrevMaskedReg);
   } else if (PrevConstant && PrevVal) {
-    BuildMI(MBB, I, DL, TII->get(LMC.OrN2Opc), DstReg)
+    BuildMI(MBB, I, DL, TII->get(LMC->OrN2Opc), DstReg)
         .addReg(CurMaskedReg)
-        .addReg(LMC.ExecReg);
+        .addReg(LMC->ExecReg);
   } else {
-    BuildMI(MBB, I, DL, TII->get(LMC.OrOpc), DstReg)
+    BuildMI(MBB, I, DL, TII->get(LMC->OrOpc), DstReg)
         .addReg(PrevMaskedReg)
-        .addReg(CurMaskedReg ? CurMaskedReg : LMC.ExecReg);
+        .addReg(CurMaskedReg ? CurMaskedReg : LMC->ExecReg);
   }
 }
 
