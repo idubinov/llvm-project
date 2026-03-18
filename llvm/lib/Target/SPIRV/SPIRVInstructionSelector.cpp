@@ -3257,6 +3257,7 @@ bool SPIRVInstructionSelector::selectBitreverse(Register ResVReg,
                                                 MachineInstr &I) const {
   Register OpReg = I.getOperand(1).getReg();
 
+  // TODO: Fix shader behavior in case of VK_KHR_maintenance9 extension is set
   if (STI.isShader()) {
     SPIRVTypeInst OpType = GR.getSPIRVTypeForVReg(OpReg);
     switch (GR.getScalarOrVectorBitWidth(OpType)) {
