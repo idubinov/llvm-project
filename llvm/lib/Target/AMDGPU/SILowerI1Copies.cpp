@@ -450,6 +450,20 @@ PhiLoweringHelper::PhiLoweringHelper(MachineFunction *MF,
   TII = ST->getInstrInfo();
 }
 
+static void instrDefsUsesSCC(const MachineInstr &MI, bool &Def, bool &Use) {
+  Def = false;
+  Use = false;
+
+  for (const MachineOperand &MO : MI.operands()) {
+    if (MO.isReg() && MO.getReg() == AMDGPU::SCC) {
+      if (MO.isUse())
+        Use = true;
+      else
+        Def = true;
+    }
+  }
+}
+
 /// Move instruction to a new position inside the same MBB, if there is no
 /// operand's dependencies. Change the InstrToMovePos after the moved
 /// instruction. returns true if instruction moved, false if not.
