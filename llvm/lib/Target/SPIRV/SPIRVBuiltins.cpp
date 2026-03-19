@@ -2639,23 +2639,26 @@ static bool buildNDRange(const SPIRV::IncomingCall *Call,
   //
   // Calculate argument indices based on the number of arguments and presence
   // of sret:
-  unsigned NumArgs = Call->Arguments.size();
-  const unsigned maxArgs = Call->Builtin->MaxNumArgs;
-  const unsigned IncorrectArgIdx = maxArgs + 1;
+  const unsigned NumCallArgs = Call->Arguments.size();
+  const unsigned MaxCallArgs = Call->Builtin->MaxNumArgs;
+  const unsigned IncorrectArgIdx = MaxCallArgs + 1;
 
   const Type *RetTy = GR->getTypeForSPIRVType(Call->ReturnType);
-  bool hasSRetArg = RetTy->isVoidTy();
+  bool HasSRetArg = RetTy->isVoidTy();
 
-  const unsigned SRetArgIdx = hasSRetArg ? 0 : IncorrectArgIdx;
-  const unsigned ArgBase = hasSRetArg ? 1 : 0;
+  const unsigned SRetArgIdx = HasSRetArg ? 0 : IncorrectArgIdx;
+  const unsigned ArgBase = HasSRetArg ? 1 : 0;
+  const unsigned MaxNDRangeArgs = 3;
+  const unsigned NumNDRangeArgs = NumCallArgs - ArgBase;
+
   const unsigned GlobalWorkSizeArgIdx =
-      NumArgs < maxArgs ? ArgBase : ArgBase + 1;
+      NumNDRangeArgs < MaxNDRangeArgs ? ArgBase : ArgBase + 1;
   const unsigned LocalWorkSizeArgIdx =
-      (NumArgs - ArgBase == 1)
+      (NumNDRangeArgs == 1)
           ? IncorrectArgIdx
-          : (NumArgs == maxArgs ? ArgBase + 2 : ArgBase + 1);
+          : (NumNDRangeArgs == MaxNDRangeArgs ? ArgBase + 2 : ArgBase + 1);
   const unsigned GlobalWorkOffsetArgIdx =
-      NumArgs == maxArgs ? ArgBase : IncorrectArgIdx;
+      NumNDRangeArgs == MaxNDRangeArgs ? ArgBase : IncorrectArgIdx;
 
   // Each nd_range field is an array of <Dimension> integers matching the
   // address model width (32 or 64 bits).
@@ -2678,7 +2681,7 @@ static bool buildNDRange(const SPIRV::IncomingCall *Call,
     assert(SpvFieldTy && SpvFieldTy->getOpcode() == SPIRV::OpTypeInt &&
            "Expected scalar integer type");
 
-    if (NumArgs < maxArgs)
+    if (NumNDRangeArgs < MaxNDRangeArgs )
       ConstZero = GR->buildConstantInt(0, MIRBuilder, SpvFieldTy, true);
   } else {
     Type *BaseTy =
@@ -2687,7 +2690,7 @@ static bool buildNDRange(const SPIRV::IncomingCall *Call,
     SpvFieldTy = GR->getOrCreateSPIRVType(
         FieldTy, MIRBuilder, SPIRV::AccessQualifier::ReadOnly, true);
 
-    if (NumArgs < maxArgs) {
+    if (NumNDRangeArgs < MaxNDRangeArgs ) {
       auto InsertIt = MIRBuilder.getInsertPt();
       MachineBasicBlock &MBB = MIRBuilder.getMBB();
       MachineInstr &InsertMI = (InsertIt != MBB.end()) ? *InsertIt : MBB.back();
@@ -2726,7 +2729,7 @@ static bool buildNDRange(const SPIRV::IncomingCall *Call,
   Register LocalWorkSize = CreateDataRegister(LocalWorkSizeArgIdx);
   Register GlobalWorkOffset = CreateDataRegister(GlobalWorkOffsetArgIdx);
 
-  if (!hasSRetArg) {
+  if (!HasSRetArg) {
     return MIRBuilder.buildInstr(SPIRV::OpBuildNDRange)
         .addDef(Call->ReturnRegister)
         .addUse(GR->getSPIRVTypeID(Call->ReturnType))
