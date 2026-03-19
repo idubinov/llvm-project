@@ -1,5 +1,5 @@
-; Test bitreverse using OpBitReverse when SPV_KHR_bit_instructions extension IS available
-; This test verifies that native OpBitReverse is used instead of emulation
+; Test bitreverse using OpBitReverse when SPV_KHR_bit_instructions extension IS available.
+; This test verifies that native OpBitReverse is used instead of emulation.
 
 ; RUN: llc -O0 -mtriple=spirv64-unknown-unknown --spirv-ext=+SPV_KHR_bit_instructions %s -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: %if spirv-tools %{ llc -O0 -mtriple=spirv64-unknown-unknown --spirv-ext=+SPV_KHR_bit_instructions %s -o - -filetype=obj | spirv-val %}
@@ -7,9 +7,9 @@
 ; With SPV_KHR_bit_instructions enabled, we should use OpBitReverse
 ; CHECK-SPIRV: OpExtension "SPV_KHR_bit_instructions"
 
-; We should NOT see emulation code (shifts and bitwise ops in the pattern used by emulation)
+; We should NOT see emulation code (shifts and bitwise ops in the pattern used by emulation).
 ; The presence of a few shifts/bitwise ops is OK (for address calculation, etc.)
-; but we should see OpBitReverse being used
+; but we should see OpBitReverse being used.
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spirv64-unknown-unknown"

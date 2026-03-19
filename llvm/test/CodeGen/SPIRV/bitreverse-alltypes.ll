@@ -1,12 +1,12 @@
 ; Test bitreverse for all popular types (scalars and vectors of 8, 16, 32, 64 bits)
-; This comprehensive test covers the full range of supported types
+; This comprehensive test covers the full range of supported types.
 
 ; RUN: llc -O0 -mtriple=spirv64-unknown-unknown %s -o - | FileCheck %s --check-prefix=CHECK-EMULATION
 ; RUN: llc -O0 -mtriple=spirv64-unknown-unknown --spirv-ext=+SPV_KHR_bit_instructions %s -o - | FileCheck %s --check-prefix=CHECK-NATIVE
 ; RUN: %if spirv-tools %{ llc -O0 -mtriple=spirv64-unknown-unknown %s -o - -filetype=obj | spirv-val %}
 ; RUN: %if spirv-tools %{ llc -O0 -mtriple=spirv64-unknown-unknown --spirv-ext=+SPV_KHR_bit_instructions %s -o - -filetype=obj | spirv-val %}
 
-; Without extension: should NOT use OpBitReverse
+; Without extension: should NOT use OpBitReverse.
 ; CHECK-EMULATION-NOT: OpBitReverse
 ; CHECK-EMULATION-DAG: OpShiftRightLogical
 ; CHECK-EMULATION-DAG: OpShiftLeftLogical
