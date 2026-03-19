@@ -31,12 +31,9 @@ define spir_func void @test_ndrange_2D3D() local_unnamed_addr #0 {
 ; CHECK-NOT:    OpStore %[[#ret1:]] %[[#res1]]
 ; CHECK-NOT:    OpStore %[[#ret2:]] %[[#res2]]
 
-
 entry:
   call spir_func %struct.ndrange_t @_Z10ndrange_1Dm(i64 noundef 1)
-
   call spir_func %struct.ndrange_t  @_Z10ndrange_3DPKmS0_S0_(ptr addrspace(2) align 4 @__const.GO_3Dc, ptr addrspace(2) align 4 @__const.GS_3Dc, ptr addrspace(2) align 4 @__const.LS_3Dc)
-
   ret void
 }
 
