@@ -2681,7 +2681,7 @@ static bool buildNDRange(const SPIRV::IncomingCall *Call,
     assert(SpvFieldTy && SpvFieldTy->getOpcode() == SPIRV::OpTypeInt &&
            "Expected scalar integer type");
 
-    if (NumNDRangeArgs < MaxNDRangeArgs )
+    if (NumNDRangeArgs < MaxNDRangeArgs)
       ConstZero = GR->buildConstantInt(0, MIRBuilder, SpvFieldTy, true);
   } else {
     Type *BaseTy =
@@ -2690,7 +2690,7 @@ static bool buildNDRange(const SPIRV::IncomingCall *Call,
     SpvFieldTy = GR->getOrCreateSPIRVType(
         FieldTy, MIRBuilder, SPIRV::AccessQualifier::ReadOnly, true);
 
-    if (NumNDRangeArgs < MaxNDRangeArgs ) {
+    if (NumNDRangeArgs < MaxNDRangeArgs) {
       auto InsertIt = MIRBuilder.getInsertPt();
       MachineBasicBlock &MBB = MIRBuilder.getMBB();
       MachineInstr &InsertMI = (InsertIt != MBB.end()) ? *InsertIt : MBB.back();
