@@ -375,14 +375,24 @@ static MachineInstr *getBlockStructInstr(Register ParamReg,
   //   or       = G_GLOBAL_VALUE @block_literal_global
   //   %1:_(pN) = G_INTRINSIC_W_SIDE_EFFECTS intrinsic(@llvm.spv.bitcast), %0
   //   %2:_(p4) = G_ADDRSPACE_CAST %1:_(pN)
+  //
+  // For function pointers (empty kernel blocks), the sequence may be simpler:
+  //   %0:_(pN) = G_GLOBAL_VALUE @block_invoke_kernel
+  //   %1:_(p4) = G_ADDRSPACE_CAST %0:_(pN)
   MachineInstr *MI = MRI->getUniqueVRegDef(ParamReg);
   assert(MI->getOpcode() == TargetOpcode::G_ADDRSPACE_CAST &&
          MI->getOperand(1).isReg());
-  Register BitcastReg = MI->getOperand(1).getReg();
-  MachineInstr *BitcastMI = MRI->getUniqueVRegDef(BitcastReg);
-  assert(isSpvIntrinsic(*BitcastMI, Intrinsic::spv_bitcast) &&
-         BitcastMI->getOperand(2).isReg());
-  Register ValueReg = BitcastMI->getOperand(2).getReg();
+  Register CastSourceReg = MI->getOperand(1).getReg();
+  MachineInstr *SourceMI = MRI->getUniqueVRegDef(CastSourceReg);
+
+  // Check if it's a direct G_GLOBAL_VALUE (function pointer case)
+  if (SourceMI->getOpcode() == TargetOpcode::G_GLOBAL_VALUE)
+    return SourceMI;
+
+  // Otherwise, expect the bitcast sequence (block literal case)
+  assert(isSpvIntrinsic(*SourceMI, Intrinsic::spv_bitcast) &&
+         SourceMI->getOperand(2).isReg());
+  Register ValueReg = SourceMI->getOperand(2).getReg();
   MachineInstr *ValueMI = MRI->getUniqueVRegDef(ValueReg);
   return ValueMI;
 }
@@ -2737,13 +2747,35 @@ static bool buildEnqueueKernel(const SPIRV::IncomingCall *Call,
     }
   }
 
+  // Prepare block invoke function and block literal before building OpEnqueueKernel.
+  const unsigned BlockFIdx = HasEvents ? 6 : 3;
+  MachineInstr *BlockMI = getBlockStructInstr(Call->Arguments[BlockFIdx], MRI);
+  assert(BlockMI->getOpcode() == TargetOpcode::G_GLOBAL_VALUE);
+
+  Register BlockLiteralReg = Call->Arguments[BlockFIdx + 1];
+  Type *PType = const_cast<Type *>(getBlockStructType(BlockLiteralReg, MRI));
+
+  // OpEnqueueKernel requires the Param to be a pointer to i8 (per SPIR-V spec).
+  // BlockLiteralReg is a Generic pointer to the block struct.
+  // Bitcast it to a Generic pointer to i8.
+  const SPIRVTypeInst Int8Ty = GR->getOrCreateSPIRVIntegerType(8, MIRBuilder);
+  const SPIRVTypeInst Int8PtrGen =
+      GR->getOrCreateSPIRVPointerType(Int8Ty, MIRBuilder,
+                                      SPIRV::StorageClass::Generic);
+
+  Register BlockLiteralGenAsI8 =
+      createVirtualRegister(Int8PtrGen, GR, MIRBuilder);
+  MIRBuilder.buildInstr(SPIRV::OpBitcast)
+      .addDef(BlockLiteralGenAsI8)
+      .addUse(GR->getSPIRVTypeID(Int8PtrGen))
+      .addUse(BlockLiteralReg);
+
   // SPIRV OpEnqueueKernel instruction has 10+ arguments.
   auto MIB = MIRBuilder.buildInstr(SPIRV::OpEnqueueKernel)
                  .addDef(Call->ReturnRegister)
                  .addUse(GR->getSPIRVTypeID(Int32Ty));
 
   // Copy all arguments before block invoke function pointer.
-  const unsigned BlockFIdx = HasEvents ? 6 : 3;
   for (unsigned i = 0; i < BlockFIdx; i++)
     MIB.addUse(Call->Arguments[i]);
 
@@ -2756,16 +2788,12 @@ static bool buildEnqueueKernel(const SPIRV::IncomingCall *Call,
     MIB.addUse(NullPtr); // Dummy ret event.
   }
 
-  MachineInstr *BlockMI = getBlockStructInstr(Call->Arguments[BlockFIdx], MRI);
-  assert(BlockMI->getOpcode() == TargetOpcode::G_GLOBAL_VALUE);
   // Invoke: Pointer to invoke function.
   MIB.addGlobalAddress(BlockMI->getOperand(1).getGlobal());
 
-  Register BlockLiteralReg = Call->Arguments[BlockFIdx + 1];
-  // Param: Pointer to block literal.
-  MIB.addUse(BlockLiteralReg);
+  // Param: Pointer to block literal (as Generic i8*).
+  MIB.addUse(BlockLiteralGenAsI8);
 
-  Type *PType = const_cast<Type *>(getBlockStructType(BlockLiteralReg, MRI));
   // TODO: these numbers should be obtained from block literal structure.
   // Param Size: Size of block literal structure.
   MIB.addUse(buildConstantIntReg32(DL.getTypeStoreSize(PType), MIRBuilder, GR));

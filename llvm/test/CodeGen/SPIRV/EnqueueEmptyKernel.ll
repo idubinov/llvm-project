@@ -1,7 +1,7 @@
 ; RUN: llc -O0 -mtriple=spirv64-unknown-unknown %s -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
 ; TODO(#60133): Requires updates following opaque pointer migration.
-; XFAIL: *
+
 
 ;; This test checks that Invoke parameter of OpEnueueKernel instruction meet the
 ;; following specification requirements in case of enqueueing empty block:
@@ -28,7 +28,6 @@
 ; CHECK-SPIRV: %[[#Void:]] = OpTypeVoid
 ; CHECK-SPIRV: %[[#Int8:]] = OpTypeInt 8
 ; CHECK-SPIRV: %[[#Int8PtrGen:]] = OpTypePointer Generic %[[#Int8]]
-; CHECK-SPIRV: %[[#Int8Ptr:]] = OpTypePointer CrossWorkgroup %[[#Int8]]
 ; CHECK-SPIRV: %[[#Block]] = OpVariable %[[#]]
 
 define spir_kernel void @test_enqueue_empty() {
@@ -38,8 +37,8 @@ entry:
   call spir_func void @_Z10ndrange_1Dm(ptr sret(ptr) %tmp, i64 1)
   %0 = call i32 @__enqueue_kernel_basic_events(ptr %call, i32 1, ptr %tmp, i32 0, ptr addrspace(4) null, ptr addrspace(4) null, ptr addrspace(4) addrspacecast (ptr @__test_enqueue_empty_block_invoke_kernel to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) @__block_literal_global to ptr addrspace(4)))
   ret void
-; CHECK-SPIRV: %[[#Int8PtrBlock:]] = OpBitcast %[[#Int8Ptr]] %[[#Block]]
-; CHECK-SPIRV: %[[#Int8PtrGenBlock:]] = OpPtrCastToGeneric %[[#Int8PtrGen]] %[[#Int8PtrBlock]]
+; CHECK-SPIRV: %[[#BlockGeneric:]] = OpPtrCastToGeneric %[[#]] %[[#Block]]
+; CHECK-SPIRV: %[[#Int8PtrGenBlock:]] = OpBitcast %[[#Int8PtrGen]] %[[#BlockGeneric]]
 ; CHECK-SPIRV: %[[#]] = OpEnqueueKernel %[[#]] %[[#]] %[[#]] %[[#]] %[[#]] %[[#]] %[[#]] %[[#Invoke:]] %[[#Int8PtrGenBlock]] %[[#]] %[[#]]
 }
 
