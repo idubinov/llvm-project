@@ -2747,7 +2747,8 @@ static bool buildEnqueueKernel(const SPIRV::IncomingCall *Call,
     }
   }
 
-  // Prepare block invoke function and block literal before building OpEnqueueKernel.
+  // Prepare block invoke function and block literal before building
+  // OpEnqueueKernel.
   const unsigned BlockFIdx = HasEvents ? 6 : 3;
   MachineInstr *BlockMI = getBlockStructInstr(Call->Arguments[BlockFIdx], MRI);
   assert(BlockMI->getOpcode() == TargetOpcode::G_GLOBAL_VALUE);
@@ -2759,9 +2760,8 @@ static bool buildEnqueueKernel(const SPIRV::IncomingCall *Call,
   // BlockLiteralReg is a Generic pointer to the block struct.
   // Bitcast it to a Generic pointer to i8.
   const SPIRVTypeInst Int8Ty = GR->getOrCreateSPIRVIntegerType(8, MIRBuilder);
-  const SPIRVTypeInst Int8PtrGen =
-      GR->getOrCreateSPIRVPointerType(Int8Ty, MIRBuilder,
-                                      SPIRV::StorageClass::Generic);
+  const SPIRVTypeInst Int8PtrGen = GR->getOrCreateSPIRVPointerType(
+      Int8Ty, MIRBuilder, SPIRV::StorageClass::Generic);
 
   Register BlockLiteralGenAsI8 =
       createVirtualRegister(Int8PtrGen, GR, MIRBuilder);
