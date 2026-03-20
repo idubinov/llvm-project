@@ -64,3 +64,42 @@ declare i32 @__enqueue_kernel_basic_events(ptr, i32, ptr, i32, ptr addrspace(4),
 
 ; CHECK-SPIRV:      %[[#Invoke]] = OpFunction %[[#Void]] None %[[#]]
 ; CHECK-SPIRV-NEXT: %[[#]] = OpFunctionParameter %[[#Int8PtrGen]]
+
+;; Test case for enqueueing empty kernel with no events
+;; __kernel void test_enqueue_empty_no_events() {
+;;   enqueue_kernel(get_default_queue(),
+;;                  CLK_ENQUEUE_FLAGS_WAIT_KERNEL,
+;;                  ndrange_1D(1),
+;;                  ^(){});
+;; }
+
+@__block_literal_global_no_events = internal addrspace(1) constant { i32, i32 } { i32 8, i32 4 }, align 4
+
+define spir_kernel void @test_enqueue_empty_no_events() {
+entry:
+  %tmp = alloca %struct.ndrange_t, align 8
+  %call = call spir_func ptr @_Z17get_default_queuev()
+  call spir_func void @_Z10ndrange_1Dm(ptr sret(ptr) %tmp, i64 1)
+  %0 = call i32 @__enqueue_kernel_basic(ptr %call, i32 1, ptr %tmp, ptr addrspace(4) addrspacecast (ptr @__test_enqueue_empty_no_events_block_invoke_kernel to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) @__block_literal_global_no_events to ptr addrspace(4)))
+  ret void
+; CHECK-SPIRV: %[[#]] = OpEnqueueKernel %[[#]] %[[#]] %[[#]] %[[#]] %[[#Invoke2:]] %[[#]] %[[#]] %[[#]]
+}
+
+define internal spir_func void @__test_enqueue_empty_no_events_block_invoke(ptr addrspace(4) %.block_descriptor) {
+entry:
+  %.block_descriptor.addr = alloca ptr addrspace(4), align 8
+  store ptr addrspace(4) %.block_descriptor, ptr %.block_descriptor.addr, align 8
+  %block = bitcast ptr addrspace(4) %.block_descriptor to ptr addrspace(4)
+  ret void
+}
+
+define internal spir_kernel void @__test_enqueue_empty_no_events_block_invoke_kernel(ptr addrspace(4)) {
+entry:
+  call void @__test_enqueue_empty_no_events_block_invoke(ptr addrspace(4) %0)
+  ret void
+}
+
+declare i32 @__enqueue_kernel_basic(ptr, i32, ptr, ptr addrspace(4), ptr addrspace(4))
+
+; CHECK-SPIRV-DAG:  %[[#Invoke2:]] = OpFunction %[[#Void]] None %[[#]]
+; CHECK-SPIRV:      %[[#]] = OpFunctionParameter %[[#Int8PtrGen]]
