@@ -370,23 +370,13 @@ lookupBuiltin(StringRef DemangledCall,
 
 static MachineInstr *getBlockStructInstr(Register ParamReg,
                                          MachineRegisterInfo *MRI) {
-  // We expect one of the following sequences of instructions:
-  //
-  // 1. Stack-allocated blocks (with bitcast):
+  // We expect the following sequence of instructions:
   //   %0:_(pN) = G_INTRINSIC_W_SIDE_EFFECTS intrinsic(@llvm.spv.alloca)
+  //   or       = G_GLOBAL_VALUE @block_literal_global
   //   %1:_(pN) = G_INTRINSIC_W_SIDE_EFFECTS intrinsic(@llvm.spv.bitcast), %0
   //   %2:_(p4) = G_ADDRSPACE_CAST %1:_(pN)
   //
-  // 2. Stack-allocated blocks (direct):
-  //   %0:_(pN) = G_INTRINSIC_W_SIDE_EFFECTS intrinsic(@llvm.spv.alloca)
-  //   %1:_(p4) = G_ADDRSPACE_CAST %0:_(pN)
-  //
-  // 3. Global block literals:
-  //   %0:_(pN) = G_GLOBAL_VALUE @block_literal_global
-  //   %1:_(pN) = G_BITCAST %0 (or spv.bitcast)
-  //   %2:_(p4) = G_ADDRSPACE_CAST %1:_(pN)
-  //
-  // 4. Function pointers (direct):
+  // For function pointers (empty kernel blocks), the sequence may be simpler:
   //   %0:_(pN) = G_GLOBAL_VALUE @block_invoke_kernel
   //   %1:_(p4) = G_ADDRSPACE_CAST %0:_(pN)
   MachineInstr *MI = MRI->getUniqueVRegDef(ParamReg);
@@ -399,30 +389,12 @@ static MachineInstr *getBlockStructInstr(Register ParamReg,
   if (SourceMI->getOpcode() == TargetOpcode::G_GLOBAL_VALUE)
     return SourceMI;
 
-  // Check if it's a direct spv_alloca (stack-allocated block without bitcast)
-  if (isSpvIntrinsic(*SourceMI, Intrinsic::spv_alloca))
-    return SourceMI;
-
-  // Handle G_BITCAST case (stack-allocated blocks)
-  if (SourceMI->getOpcode() == TargetOpcode::G_BITCAST) {
-    assert(SourceMI->getOperand(1).isReg());
-    Register ValueReg = SourceMI->getOperand(1).getReg();
-    MachineInstr *ValueMI = MRI->getUniqueVRegDef(ValueReg);
-    return ValueMI;
-  }
-
-  // Handle spv_bitcast case (global block literal from CrossWorkgroup)
-  if (isSpvIntrinsic(*SourceMI, Intrinsic::spv_bitcast)) {
-    assert(SourceMI->getOperand(2).isReg());
-    Register ValueReg = SourceMI->getOperand(2).getReg();
-    MachineInstr *ValueMI = MRI->getUniqueVRegDef(ValueReg);
-    return ValueMI;
-  }
-
-  // Unhandled case - print debug info
-  SourceMI->print(errs());
-  errs() << "Opcode: " << SourceMI->getOpcode() << "\n";
-  llvm_unreachable("getBlockStructInstr: unexpected instruction pattern");
+  // Otherwise, expect the bitcast sequence (block literal case)
+  assert(isSpvIntrinsic(*SourceMI, Intrinsic::spv_bitcast) &&
+         SourceMI->getOperand(2).isReg());
+  Register ValueReg = SourceMI->getOperand(2).getReg();
+  MachineInstr *ValueMI = MRI->getUniqueVRegDef(ValueReg);
+  return ValueMI;
 }
 
 // Return an integer constant corresponding to the given register and
@@ -463,8 +435,7 @@ static const Type *getBlockStructType(Register ParamReg,
   // section 6.12.5 should guarantee that we can do this.
   MachineInstr *MI = getBlockStructInstr(ParamReg, MRI);
   if (MI->getOpcode() == TargetOpcode::G_GLOBAL_VALUE)
-    return MI->getOperand(1).getGlobal()->getValueType();
-  // return MI->getOperand(1).getGlobal()->getType();
+    return MI->getOperand(1).getGlobal()->getType();
   assert(isSpvIntrinsic(*MI, Intrinsic::spv_alloca) &&
          "Blocks in OpenCL C must be traceable to allocation site");
   return getMachineInstrType(MI);
