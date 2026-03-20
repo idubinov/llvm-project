@@ -2,8 +2,8 @@
 ; RUN: %if spirv-tools %{ llc -O0 -mtriple=spirv32-unknown-unknown %s -o - -filetype=obj | spirv-val %}
 
 ; TODO(#60133): Requires updates following opaque pointer migration.
-; XFAIL: *
 
+; CHECK-SPIRV-DAG: OpCapability DeviceEnqueue
 ; CHECK-SPIRV-DAG: OpEntryPoint Kernel %[[#BlockKer1:]] "__device_side_enqueue_block_invoke_kernel"
 ; CHECK-SPIRV-DAG: OpEntryPoint Kernel %[[#BlockKer2:]] "__device_side_enqueue_block_invoke_2_kernel"
 ; CHECK-SPIRV-DAG: OpEntryPoint Kernel %[[#BlockKer3:]] "__device_side_enqueue_block_invoke_3_kernel"
@@ -16,17 +16,10 @@
 ; CHECK-SPIRV-DAG: %[[#Int8Ty:]] = OpTypeInt 8
 ; CHECK-SPIRV-DAG: %[[#VoidTy:]] = OpTypeVoid
 ; CHECK-SPIRV-DAG: %[[#Int8PtrGenTy:]] = OpTypePointer Generic %[[#Int8Ty]]
-; CHECK-SPIRV-DAG: %[[#EventTy:]] = OpTypeDeviceEvent
-; CHECK-SPIRV-DAG: %[[#EventPtrTy:]] = OpTypePointer Generic %[[#EventTy]]
 ; CHECK-SPIRV-DAG: %[[#Int32LocPtrTy:]] = OpTypePointer Function %[[#Int32Ty]]
-; CHECK-SPIRV-DAG: %[[#BlockStructTy:]] = OpTypeStruct
-; CHECK-SPIRV-DAG: %[[#BlockStructLocPtrTy:]] = OpTypePointer Function %[[#BlockStructTy]]
-; CHECK-SPIRV-DAG: %[[#BlockTy1:]] = OpTypeFunction %[[#VoidTy]] %[[#Int8PtrGenTy]]
-; CHECK-SPIRV-DAG: %[[#BlockTy2:]] = OpTypeFunction %[[#VoidTy]] %[[#Int8PtrGenTy]]
-; CHECK-SPIRV-DAG: %[[#BlockTy3:]] = OpTypeFunction %[[#VoidTy]] %[[#Int8PtrGenTy]]
 
 ; CHECK-SPIRV-DAG: %[[#ConstInt0:]] = OpConstantNull %[[#Int32Ty]]
-; CHECK-SPIRV-DAG: %[[#EventNull:]] = OpConstantNull %[[#EventPtrTy]]
+; CHECK-SPIRV-DAG: %[[#EventNull:]] = OpConstantNull %[[#Int8PtrGenTy]]
 ; CHECK-SPIRV-DAG: %[[#ConstInt21:]] = OpConstant %[[#Int32Ty]] 21{{$}}
 ; CHECK-SPIRV-DAG: %[[#ConstInt8:]] = OpConstant %[[#Int32Ty]] 8{{$}}
 ; CHECK-SPIRV-DAG: %[[#ConstInt24:]] = OpConstant %[[#Int32Ty]] 24{{$}}
@@ -46,9 +39,7 @@
 
 ;; Emits block literal on stack and block kernel.
 
-; CHECK-SPIRV:      %[[#BlockLitPtr1:]] = OpBitcast %[[#BlockStructLocPtrTy]]
-; CHECK-SPIRV-NEXT: %[[#BlockLit1:]] = OpPtrCastToGeneric %[[#Int8PtrGenTy]] %[[#BlockLitPtr1]]
-; CHECK-SPIRV-NEXT: %[[#]] = OpEnqueueKernel %[[#Int32Ty]] %[[#]] %[[#]] %[[#]] %[[#ConstInt0]] %[[#EventNull]] %[[#EventNull]] %[[#BlockKer1]] %[[#BlockLit1]] %[[#ConstInt21]] %[[#ConstInt8]]
+; CHECK-SPIRV: OpEnqueueKernel %[[#Int32Ty]] %[[#]] %[[#]] %[[#]] %[[#ConstInt0]] %[[#EventNull]] %[[#EventNull]] %[[#BlockKer1]] %[[#]] %[[#ConstInt21]] %[[#ConstInt8]]
 
 ;;   enqueue_kernel(default_queue, flags, ndrange,
 ;;                  ^(void) {
@@ -57,11 +48,7 @@
 
 ;; Emits block literal on stack and block kernel.
 
-; CHECK-SPIRV:      %[[#Event1:]] = OpPtrCastToGeneric %[[#EventPtrTy]]
-; CHECK-SPIRV:      %[[#Event2:]] = OpPtrCastToGeneric %[[#EventPtrTy]]
-; CHECK-SPIRV:      %[[#BlockLitPtr2:]] = OpBitcast %[[#BlockStructLocPtrTy]]
-; CHECK-SPIRV-NEXT: %[[#BlockLit2:]] = OpPtrCastToGeneric %[[#Int8PtrGenTy]] %[[#BlockLitPtr2]]
-; CHECK-SPIRV-NEXT: %[[#]] = OpEnqueueKernel %[[#Int32Ty]] %[[#]] %[[#]] %[[#]] %[[#ConstInt2]] %[[#Event1]] %[[#Event2]] %[[#BlockKer2]] %[[#BlockLit2]] %[[#ConstInt24]] %[[#ConstInt8]]
+; CHECK-SPIRV: OpEnqueueKernel %[[#Int32Ty]] %[[#]] %[[#]] %[[#]] %[[#ConstInt2]] %[[#]] %[[#]] %[[#BlockKer2]] %[[#]] %[[#ConstInt24]] %[[#ConstInt8]]
 
 ;;   enqueue_kernel(default_queue, flags, ndrange, 2, &event_wait_list, &clk_event,
 ;;                  ^(void) {
@@ -71,12 +58,7 @@
 ;;   char c;
 ;; Emits global block literal and block kernel.
 
-; CHECK-SPIRV: %[[#Event1:]] = OpPtrCastToGeneric %[[#EventPtrTy]]
-; CHECK-SPIRV: %[[#Event2:]] = OpPtrCastToGeneric %[[#EventPtrTy]]
-; CHECK-SPIRV: %[[#BlockLit3Tmp:]] = OpBitcast %[[#]] %[[#BlockGlb1]]
-; CHECK-SPIRV: %[[#BlockLit3:]] = OpPtrCastToGeneric %[[#Int8PtrGenTy]] %[[#BlockLit3Tmp]]
-; CHECK-SPIRV: %[[#LocalBuf31:]] = OpPtrAccessChain %[[#Int32LocPtrTy]]
-; CHECK-SPIRV: %[[#]] = OpEnqueueKernel %[[#Int32Ty]] %[[#]] %[[#]] %[[#]] %[[#ConstInt2]] %[[#Event1]] %[[#Event2]] %[[#BlockKer3]] %[[#BlockLit3]] %[[#ConstInt12]] %[[#ConstInt8]] %[[#LocalBuf31]]
+; CHECK-SPIRV: OpEnqueueKernel %[[#Int32Ty]] %[[#]] %[[#]] %[[#]] %[[#ConstInt2]] %[[#]] %[[#]] %[[#BlockKer3]] %[[#]] %[[#ConstInt12]] %[[#ConstInt8]]
 
 ;;   enqueue_kernel(default_queue, flags, ndrange, 2, event_wait_list2, &clk_event,
 ;;                  ^(local void *p) {
@@ -86,12 +68,7 @@
 
 ;; Emits global block literal and block kernel.
 
-; CHECK-SPIRV:      %[[#BlockLit4Tmp:]] = OpBitcast %[[#]] %[[#BlockGlb2]]
-; CHECK-SPIRV:      %[[#BlockLit4:]] = OpPtrCastToGeneric %[[#Int8PtrGenTy]] %[[#BlockLit4Tmp]]
-; CHECK-SPIRV:      %[[#LocalBuf41:]] = OpPtrAccessChain %[[#Int32LocPtrTy]]
-; CHECK-SPIRV-NEXT: %[[#LocalBuf42:]] = OpPtrAccessChain %[[#Int32LocPtrTy]]
-; CHECK-SPIRV-NEXT: %[[#LocalBuf43:]] = OpPtrAccessChain %[[#Int32LocPtrTy]]
-; CHECK-SPIRV-NEXT: %[[#]] = OpEnqueueKernel %[[#Int32Ty]] %[[#]] %[[#]] %[[#]] %[[#ConstInt0]] %[[#EventNull]] %[[#EventNull]] %[[#BlockKer4]] %[[#BlockLit4]] %[[#ConstInt12]] %[[#ConstInt8]] %[[#LocalBuf41]] %[[#LocalBuf42]] %[[#LocalBuf43]]
+; CHECK-SPIRV: OpEnqueueKernel %[[#Int32Ty]] %[[#]] %[[#]] %[[#]] %[[#ConstInt0]] %[[#EventNull]] %[[#EventNull]] %[[#BlockKer4]] %[[#]] %[[#ConstInt12]] %[[#ConstInt8]]
 
 ;;   enqueue_kernel(default_queue, flags, ndrange,
 ;;                  ^(local void *p1, local void *p2, local void *p3) {
@@ -101,10 +78,7 @@
 
 ;; Emits block literal on stack and block kernel.
 
-; CHECK-SPIRV:      %[[#Event1:]] = OpPtrCastToGeneric %[[#EventPtrTy]]
-; CHECK-SPIRV:      %[[#BlockLit5Tmp:]] = OpBitcast %[[#BlockStructLocPtrTy]]
-; CHECK-SPIRV-NEXT: %[[#BlockLit5:]] = OpPtrCastToGeneric %[[#Int8PtrGenTy]] %[[#BlockLit5Tmp]]
-; CHECK-SPIRV-NEXT: %[[#]] = OpEnqueueKernel %[[#Int32Ty]] %[[#]] %[[#]] %[[#]] %[[#ConstInt0]] %[[#EventNull]] %[[#Event1]] %[[#BlockKer5]] %[[#BlockLit5]] %[[#ConstInt24]] %[[#ConstInt8]]
+; CHECK-SPIRV: OpEnqueueKernel %[[#Int32Ty]] %[[#]] %[[#]] %[[#]] %[[#ConstInt0]] %[[#EventNull]] %[[#]] %[[#BlockKer5]] %[[#]] %[[#ConstInt24]] %[[#ConstInt8]]
 
 ;;   enqueue_kernel(default_queue, flags, ndrange, 0, NULL, &clk_event,
 ;;                  ^(void) {
@@ -112,11 +86,11 @@
 ;;                  });
 ;; }
 
-; CHECK-SPIRV-DAG: %[[#BlockKer1]] = OpFunction %[[#VoidTy]] None %[[#BlockTy1]]
-; CHECK-SPIRV-DAG: %[[#BlockKer2]] = OpFunction %[[#VoidTy]] None %[[#BlockTy1]]
-; CHECK-SPIRV-DAG: %[[#BlockKer3]] = OpFunction %[[#VoidTy]] None %[[#BlockTy3]]
-; CHECK-SPIRV-DAG: %[[#BlockKer4]] = OpFunction %[[#VoidTy]] None %[[#BlockTy2]]
-; CHECK-SPIRV-DAG: %[[#BlockKer5]] = OpFunction %[[#VoidTy]] None %[[#BlockTy1]]
+; CHECK-SPIRV-DAG: %[[#BlockKer1]] = OpFunction %[[#VoidTy]]
+; CHECK-SPIRV-DAG: %[[#BlockKer2]] = OpFunction %[[#VoidTy]]
+; CHECK-SPIRV-DAG: %[[#BlockKer3]] = OpFunction %[[#VoidTy]]
+; CHECK-SPIRV-DAG: %[[#BlockKer4]] = OpFunction %[[#VoidTy]]
+; CHECK-SPIRV-DAG: %[[#BlockKer5]] = OpFunction %[[#VoidTy]]
 
 %opencl.queue_t = type opaque
 %struct.ndrange_t = type { i32 }
