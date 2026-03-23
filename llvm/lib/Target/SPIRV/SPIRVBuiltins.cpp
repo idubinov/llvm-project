@@ -2757,7 +2757,7 @@ static bool buildEnqueueKernel(const SPIRV::IncomingCall *Call,
   Register BlockLiteralReg = Call->Arguments[BlockFIdx + 1];
   Type *PType = const_cast<Type *>(getBlockStructType(BlockLiteralReg, MRI));
 
-  // OpEnqueueKernel requires the Param to be a pointer to i8 (per SPIR-V spec).
+  // OpEnqueueKernel requires the Param to be a pointer to i8.
   // BlockLiteralReg is a Generic pointer to the block struct.
   // Bitcast it to a Generic pointer to i8.
   const SPIRVTypeInst Int8Ty = GR->getOrCreateSPIRVIntegerType(8, MIRBuilder);
