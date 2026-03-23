@@ -384,7 +384,7 @@ static MachineInstr *getBlockStructInstr(Register ParamReg,
          MI->getOperand(1).isReg());
   Register CastSourceReg = MI->getOperand(1).getReg();
   MachineInstr *SourceMI = MRI->getUniqueVRegDef(CastSourceReg);
-  assert(SourceMI);
+  assert(SourceMI && "Definition for source reg not found.");
 
   // Check if it's a direct G_GLOBAL_VALUE (function pointer case).
   if (SourceMI->getOpcode() == TargetOpcode::G_GLOBAL_VALUE)
@@ -2755,7 +2755,7 @@ static bool buildEnqueueKernel(const SPIRV::IncomingCall *Call,
   assert(BlockMI->getOpcode() == TargetOpcode::G_GLOBAL_VALUE);
 
   Register BlockLiteralReg = Call->Arguments[BlockFIdx + 1];
-  Type *PType = const_cast<Type *>(getBlockStructType(BlockLiteralReg, MRI));
+  const Type *PType = getBlockStructType(BlockLiteralReg, MRI);
 
   // OpEnqueueKernel requires the Param to be a pointer to i8.
   // BlockLiteralReg is a Generic pointer to the block struct.
@@ -2797,9 +2797,9 @@ static bool buildEnqueueKernel(const SPIRV::IncomingCall *Call,
 
   // TODO: these numbers should be obtained from block literal structure.
   // Param Size: Size of block literal structure.
-  MIB.addUse(buildConstantIntReg32(DL.getTypeStoreSize(PType), MIRBuilder, GR));
+  MIB.addUse(buildConstantIntReg32(DL.getTypeStoreSize(const_cast<Type *>(PType)), MIRBuilder, GR));
   // Param Aligment: Aligment of block literal structure.
-  MIB.addUse(buildConstantIntReg32(DL.getPrefTypeAlign(PType).value(),
+  MIB.addUse(buildConstantIntReg32(DL.getPrefTypeAlign(const_cast<Type *>(PType)).value(),
                                    MIRBuilder, GR));
 
   for (unsigned i = 0; i < LocalSizes.size(); i++)
