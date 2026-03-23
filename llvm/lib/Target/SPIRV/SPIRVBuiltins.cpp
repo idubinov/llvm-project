@@ -384,6 +384,7 @@ static MachineInstr *getBlockStructInstr(Register ParamReg,
          MI->getOperand(1).isReg());
   Register CastSourceReg = MI->getOperand(1).getReg();
   MachineInstr *SourceMI = MRI->getUniqueVRegDef(CastSourceReg);
+  assert(SourceMI);
 
   // Check if it's a direct G_GLOBAL_VALUE (function pointer case)
   if (SourceMI->getOpcode() == TargetOpcode::G_GLOBAL_VALUE)
