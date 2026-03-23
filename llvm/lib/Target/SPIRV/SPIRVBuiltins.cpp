@@ -386,11 +386,11 @@ static MachineInstr *getBlockStructInstr(Register ParamReg,
   MachineInstr *SourceMI = MRI->getUniqueVRegDef(CastSourceReg);
   assert(SourceMI);
 
-  // Check if it's a direct G_GLOBAL_VALUE (function pointer case)
+  // Check if it's a direct G_GLOBAL_VALUE (function pointer case).
   if (SourceMI->getOpcode() == TargetOpcode::G_GLOBAL_VALUE)
     return SourceMI;
 
-  // Otherwise, expect the bitcast sequence (block literal case)
+  // Otherwise, expect the bitcast sequence (block literal case).
   assert(isSpvIntrinsic(*SourceMI, Intrinsic::spv_bitcast) &&
          SourceMI->getOperand(2).isReg());
   Register ValueReg = SourceMI->getOperand(2).getReg();
