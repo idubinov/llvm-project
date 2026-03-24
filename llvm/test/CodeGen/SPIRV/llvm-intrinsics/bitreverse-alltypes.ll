@@ -1,23 +1,10 @@
 ; Test bitreverse for all popular types (scalars and vectors of 8, 16, 32, 64 bits)
 ; This comprehensive test covers the full range of supported types
 
-; RUN: llc -O0 -mtriple=spirv64-unknown-unknown %s -o - | FileCheck %s --check-prefix=CHECK-EMULATION
-; RUN: llc -O0 -mtriple=spirv64-unknown-unknown --spirv-ext=+SPV_KHR_bit_instructions %s -o - | FileCheck %s --check-prefix=CHECK-NATIVE
-; RUN: %if spirv-tools %{ llc -O0 -mtriple=spirv64-unknown-unknown %s -o - -filetype=obj | spirv-val %}
-; RUN: %if spirv-tools %{ llc -O0 -mtriple=spirv64-unknown-unknown --spirv-ext=+SPV_KHR_bit_instructions %s -o - -filetype=obj | spirv-val %}
-
-; Without extension: should NOT use OpBitReverse
-; CHECK-EMULATION-NOT: OpBitReverse
-; CHECK-EMULATION-DAG: OpShiftRightLogical
-; CHECK-EMULATION-DAG: OpShiftLeftLogical
-; CHECK-EMULATION-DAG: OpBitwiseAnd
-; CHECK-EMULATION-DAG: OpBitwiseOr
-
-; With extension: should use OpBitReverse and declare the extension
-; CHECK-NATIVE: OpExtension "SPV_KHR_bit_instructions"
-
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spirv64-unknown-unknown"
+; RUN: llc -O0 -verify-machineinstrs -mtriple=spirv64-unknown-unknown %s -o - | FileCheck %s --check-prefix=CHECK-EMULATION
+; RUN: llc -O0 -verify-machineinstrs -mtriple=spirv64-unknown-unknown --spirv-ext=+SPV_KHR_bit_instructions %s -o - | FileCheck %s --check-prefix=CHECK-NATIVE
+; RUN: %if spirv-tools %{ llc -O0 -verify-machineinstrs -mtriple=spirv64-unknown-unknown %s -o - -filetype=obj | spirv-val %}
+; RUN: %if spirv-tools %{ llc -O0 -verify-machineinstrs -mtriple=spirv64-unknown-unknown --spirv-ext=+SPV_KHR_bit_instructions %s -o - -filetype=obj | spirv-val %}
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Scalar types - 8, 16, 32, 64 bits
@@ -25,7 +12,12 @@ target triple = "spirv64-unknown-unknown"
 
 define spir_kernel void @test_scalar_i8(i8 %a, ptr addrspace(1) %res) #0 {
 entry:
-  ; CEMULATION-LABEL: Begin function test_scalar_i8
+  ; CHECK-EMULATION-LABEL: Begin function test_scalar_i8
+  ; CHECK-EMULATION-NOT: OpBitReverse
+  ; CHECK-EMULATION: OpShiftRightLogical
+  ; CHECK-EMULATION: OpShiftLeftLogical
+  ; CHECK-EMULATION: OpBitwiseAnd
+  ; CHECK-EMULATION: OpBitwiseOr
   ; CHECK-NATIVE-LABEL: Begin function test_scalar_i8
   ; CHECK-NATIVE:OpBitReverse
   %call = call i8 @llvm.bitreverse.i8(i8 %a)
@@ -35,7 +27,11 @@ entry:
 
 define spir_kernel void @test_scalar_i16(i16 %a, ptr addrspace(1) %res) #0 {
 entry:
-  ; CEMULATION-LABEL: Begin function test_scalar_i16
+  ; CHECK-EMULATION-LABEL: Begin function test_scalar_i16
+  ; CHECK-EMULATION: OpShiftRightLogical
+  ; CHECK-EMULATION: OpShiftLeftLogical
+  ; CHECK-EMULATION: OpBitwiseAnd
+  ; CHECK-EMULATION: OpBitwiseOr
   ; CHECK-NATIVE-LABEL: Begin function test_scalar_i16
   ; CHECK-NATIVE: OpBitReverse
   %call = call i16 @llvm.bitreverse.i16(i16 %a)
@@ -45,7 +41,11 @@ entry:
 
 define spir_kernel void @test_scalar_i32(i32 %a, ptr addrspace(1) %res) #0 {
 entry:
-  ; CEMULATION-LABEL:  Begin function test_scalar_i32
+  ; CHECK-EMULATION-LABEL:  Begin function test_scalar_i32
+  ; CHECK-EMULATION: OpShiftRightLogical
+  ; CHECK-EMULATION: OpShiftLeftLogical
+  ; CHECK-EMULATION: OpBitwiseAnd
+  ; CHECK-EMULATION: OpBitwiseOr
   ; CHECK-NATIVE-LABEL:  Begin function test_scalar_i32
   ; CHECK-NATIVE: OpBitReverse
   %call = call i32 @llvm.bitreverse.i32(i32 %a)
@@ -55,7 +55,11 @@ entry:
 
 define spir_kernel void @test_scalar_i64(i64 %a, ptr addrspace(1) %res) #0 {
 entry:
-  ; CEMULATION-LABEL: Begin function test_scalar_i64
+  ; CHECK-EMULATION-LABEL: Begin function test_scalar_i64
+  ; CHECK-EMULATION: OpShiftRightLogical
+  ; CHECK-EMULATION: OpShiftLeftLogical
+  ; CHECK-EMULATION: OpBitwiseAnd
+  ; CHECK-EMULATION: OpBitwiseOr
   ; CHECK-NATIVE-LABEL: Begin function test_scalar_i64
   ; CHECK-NATIVE: OpBitReverse
   %call = call i64 @llvm.bitreverse.i64(i64 %a)
@@ -69,7 +73,11 @@ entry:
 
 define spir_kernel void @test_v2i8(<2 x i8> %a, ptr addrspace(1) %res) #0 {
 entry:
-  ; CEMULATION-LABEL: Begin function test_v2i8
+  ; CHECK-EMULATION-LABEL: Begin function test_v2i8
+  ; CHECK-EMULATION: OpShiftRightLogical
+  ; CHECK-EMULATION: OpShiftLeftLogical
+  ; CHECK-EMULATION: OpBitwiseAnd
+  ; CHECK-EMULATION: OpBitwiseOr
   ; CHECK-NATIVE-LABEL: Begin function test_v2i8
   ; CHECK-NATIVE: OpBitReverse
   %call = call <2 x i8> @llvm.bitreverse.v2i8(<2 x i8> %a)
@@ -79,7 +87,11 @@ entry:
 
 define spir_kernel void @test_v2i16(<2 x i16> %a, ptr addrspace(1) %res) #0 {
 entry:
-  ; CEMULATION-LABEL: Begin function test_v2i16
+  ; CHECK-EMULATION-LABEL: Begin function test_v2i16
+  ; CHECK-EMULATION: OpShiftRightLogical
+  ; CHECK-EMULATION: OpShiftLeftLogical
+  ; CHECK-EMULATION: OpBitwiseAnd
+  ; CHECK-EMULATION: OpBitwiseOr
   ; CHECK-NATIVE-LABEL: Begin function test_v2i16
   ; CHECK-NATIVE: OpBitReverse
   %call = call <2 x i16> @llvm.bitreverse.v2i16(<2 x i16> %a)
@@ -89,7 +101,11 @@ entry:
 
 define spir_kernel void @test_v2i32(<2 x i32> %a, ptr addrspace(1) %res) #0 {
 entry:
-  ; CEMULATION-LABEL: Begin function test_v2i32
+  ; CHECK-EMULATION-LABEL: Begin function test_v2i32
+  ; CHECK-EMULATION: OpShiftRightLogical
+  ; CHECK-EMULATION: OpShiftLeftLogical
+  ; CHECK-EMULATION: OpBitwiseAnd
+  ; CHECK-EMULATION: OpBitwiseOr
   ; CHECK-NATIVE-LABEL: Begin function test_v2i32
   ; CHECK-NATIVE: OpBitReverse
   %call = call <2 x i32> @llvm.bitreverse.v2i32(<2 x i32> %a)
@@ -99,7 +115,11 @@ entry:
 
 define spir_kernel void @test_v2i64(<2 x i64> %a, ptr addrspace(1) %res) #0 {
 entry:
-  ; CEMULATION-LABEL: Begin function test_v2i64
+  ; CHECK-EMULATION-LABEL: Begin function test_v2i64
+  ; CHECK-EMULATION: OpShiftRightLogical
+  ; CHECK-EMULATION: OpShiftLeftLogical
+  ; CHECK-EMULATION: OpBitwiseAnd
+  ; CHECK-EMULATION: OpBitwiseOr
   ; CHECK-NATIVE-LABEL: Begin function test_v2i64
   ; CHECK-NATIVE: OpBitReverse
   %call = call <2 x i64> @llvm.bitreverse.v2i64(<2 x i64> %a)
@@ -122,5 +142,3 @@ declare <2 x i8>  @llvm.bitreverse.v2i8(<2 x i8>)
 declare <2 x i16> @llvm.bitreverse.v2i16(<2 x i16>)
 declare <2 x i32> @llvm.bitreverse.v2i32(<2 x i32>)
 declare <2 x i64> @llvm.bitreverse.v2i64(<2 x i64>)
-
-attributes #0 = { nounwind }

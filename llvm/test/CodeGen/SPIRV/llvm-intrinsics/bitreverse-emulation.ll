@@ -1,7 +1,7 @@
 ; Test bitreverse emulation when SPV_KHR_bit_instructions is NOT available
 ; This test verifies that the bitreverse emulation is generated for all supported types
 
-; RUN: llc -O0 -mtriple=spirv64-unknown-unknown %s -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llc -O0 -verify-machineinstrs -mtriple=spirv64-unknown-unknown %s -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: %if spirv-tools %{ llc -O0 -mtriple=spirv64-unknown-unknown %s -o - -filetype=obj | spirv-val %}
 
 ; SPV_KHR_bit_instructions extension is not enabled, so OpBitReverse must NOT be used
@@ -12,9 +12,6 @@
 ; CHECK-SPIRV-DAG: OpShiftLeftLogical
 ; CHECK-SPIRV-DAG: OpBitwiseAnd
 ; CHECK-SPIRV-DAG: OpBitwiseOr
-
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spirv64-unknown-unknown"
 
 ; Function Attrs: nounwind
 define spir_kernel void @test_bitreverse_scalar(i8 %a, i16 %b, i32 %c, i64 %d, ptr addrspace(1) %res) #0 {
@@ -138,5 +135,3 @@ declare <8 x i32> @llvm.bitreverse.v8i32(<8 x i32>)
 declare <16 x i8>  @llvm.bitreverse.v16i8(<16 x i8>)
 declare <16 x i16> @llvm.bitreverse.v16i16(<16 x i16>)
 declare <16 x i32> @llvm.bitreverse.v16i32(<16 x i32>)
-
-attributes #0 = { nounwind }
