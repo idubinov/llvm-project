@@ -1,5 +1,5 @@
 ; Test bitreverse for all popular types (scalars and vectors of 8, 16, 32, 64 bits)
-; This comprehensive test covers the full range of supported types
+; This comprehensive test covers the full range of supported types.
 
 ; RUN: llc -O0 -verify-machineinstrs -mtriple=spirv64-unknown-unknown %s -o - | FileCheck %s --check-prefix=CHECK-EMULATION
 ; RUN: llc -O0 -verify-machineinstrs -mtriple=spirv64-unknown-unknown --spirv-ext=+SPV_KHR_bit_instructions %s -o - | FileCheck %s --check-prefix=CHECK-NATIVE

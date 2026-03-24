@@ -1,5 +1,5 @@
-; Test bitreverse emulation when SPV_KHR_bit_instructions is NOT available
-; This test verifies that the bitreverse emulation is generated for all supported types
+; Test bitreverse emulation when SPV_KHR_bit_instructions is NOT available.
+; This test verifies that the bitreverse emulation is generated for all supported types.
 
 ; RUN: llc -O0 -verify-machineinstrs -mtriple=spirv64-unknown-unknown %s -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: %if spirv-tools %{ llc -O0 -mtriple=spirv64-unknown-unknown %s -o - -filetype=obj | spirv-val %}
@@ -7,7 +7,7 @@
 ; SPV_KHR_bit_instructions extension is not enabled, so OpBitReverse must NOT be used
 ; CHECK-SPIRV-NOT: OpBitReverse
 
-; Instead, we should see the emulation using shift and bitwise operations
+; Instead, we should see the emulation using shift and bitwise operations.
 ; CHECK-SPIRV-DAG: OpShiftRightLogical
 ; CHECK-SPIRV-DAG: OpShiftLeftLogical
 ; CHECK-SPIRV-DAG: OpBitwiseAnd
