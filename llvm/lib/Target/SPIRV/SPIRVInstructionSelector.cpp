@@ -3275,6 +3275,7 @@ bool SPIRVInstructionSelector::selectBitreverse(Register ResVReg,
   // Algo: https://graphics.stanford.edu/~seander/bithacks.html#ReverseParallel
   const unsigned BitWidth = GR.getScalarOrVectorBitWidth(ResType);
   bool BitWidthIsPowerOfTwo = !(BitWidth & (BitWidth - 1));
+  // TODO: add support for any bit width and bitwidth more than 64.
   if (BitWidth <= 64 && !(BitWidth && BitWidthIsPowerOfTwo))
     return false;
 
