@@ -3293,9 +3293,9 @@ bool SPIRVInstructionSelector::selectBitreverse(Register ResVReg,
 
   // Helper, one swap per step: ((input>>shift)&mask)|((input&mask)<<shift),
   // RPN: input shift >> mask & input mask & shift << |
-  auto SwapBits = [&](Register Input, uint64_t Mask,
-                      unsigned Shift) -> Register {
-    auto CreateConst = [&](uint64_t Value) -> Register {
+  auto SwapBits = [&](const Register Input, const uint64_t Mask,
+                      const unsigned Shift) -> Register {
+    auto CreateConst = [&](const uint64_t Value) -> Register {
       if (N == 1)
         return GR.getOrCreateConstInt(
             Value, I, GR.retrieveScalarOrVectorIntType(ResType), TII);
@@ -3320,12 +3320,12 @@ bool SPIRVInstructionSelector::selectBitreverse(Register ResVReg,
     return Result;
   };
 
-  unsigned shift = BitWidth;
+  unsigned Shift = BitWidth;
   Register Result = OpReg;
-  uint64_t mask = ~0;
-  while ((shift >>= 1) > 0) {
-    mask ^= (mask << shift);
-    Result = SwapBits(Result, mask, shift);
+  uint64_t Mask = ~0;
+  while ((Shift >>= 1) > 0) {
+    Mask ^= (Mask << Shift);
+    Result = SwapBits(Result, Mask, Shift);
     if (!Result.isValid())
       return false;
   }
