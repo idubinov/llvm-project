@@ -3353,7 +3353,7 @@ bool SPIRVInstructionSelector::selectBitreverse(Register ResVReg,
 
   unsigned Shift = BitWidth;
   Register Result = OpReg;
-  uint64_t Mask = ~0;
+  uint64_t Mask = ~0ull;
   while ((Shift >>= 1) > 0) {
     Mask ^= (Mask << Shift);
     Result = SwapBits(Result, Mask, Shift);
