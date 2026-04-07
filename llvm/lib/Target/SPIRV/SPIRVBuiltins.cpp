@@ -414,7 +414,7 @@ static MachineInstr *getBlockStructInstr(Register ParamReg,
 
   // Handle spv_bitcast case (global block literal from CrossWorkgroup)
   if (isSpvIntrinsic(*SourceMI, Intrinsic::spv_bitcast)) {
-    assert(SourceMI->getNumOperands()>=2 && SourceMI->getOperand(2).isReg());
+    assert(SourceMI->getNumOperands() >= 2 && SourceMI->getOperand(2).isReg());
     Register ValueReg = SourceMI->getOperand(2).getReg();
     MachineInstr *ValueMI = MRI->getUniqueVRegDef(ValueReg);
     return ValueMI;
@@ -2848,10 +2848,14 @@ static bool buildEnqueueKernel(const SPIRV::IncomingCall *Call,
   // 1. prepare call indexes in order we expect them.
   // Based on clang sources, clang/lib/CodeGen/CGBuiltin.cpp, BIenqueue_kernel,
   // We expect 4 different layouts of call arguments:
-  //   1) No events, no vargs: {Queue, Flags, Range, Kernel, Block}
-  //   2) No events, varargs: {Queue, Flags, Range, Kernel, Block, NumElem, ElemPtr}
-  //   3) events, no varargs: {Queue, Flags, Range, NumEvents, EventWaitList, EventRet, Kernel, Block}
-  //   4) events, varargs: {Queue, Flags, Range, NumEvents, EventWaitList, EventRet, Kernel, Block, NumElem, ElemPtr}
+  //   1) No events, no vargs: {Queue, Flags, Range, Kernel, Block};
+  //   2) No events, varargs: {Queue, Flags, Range, Kernel, Block, NumElem,
+  //      ElemPtr};
+  //   3) events, no varargs: {Queue, Flags, Range, NumEvents,
+  //      EventWaitList, EventRet, Kernel, Block};
+  //   4) events, varargs: {Queue,
+  //      Flags, Range, NumEvents, EventWaitList, EventRet, Kernel, Block,
+  //      NumElem, ElemPtr};
   //
   // We also may expect __spirv_EnqueueKernel
   /// TODO: handle __spirv_EnqueueKernel
@@ -2872,15 +2876,18 @@ static bool buildEnqueueKernel(const SPIRV::IncomingCall *Call,
   const unsigned RetEventIdx = HasEvents ? BaseArgIdx + 5 : IncorrectIdx;
   const unsigned InvokeIdx = BaseArgIdx + 3 + (HasEvents ? 3 : 0);
   const unsigned ParamIdx = BaseArgIdx + 4 + (HasEvents ? 3 : 0);
-  const unsigned LocalSizeNumElemIdx = HasVarArgs ? (BaseArgIdx + 5 + (HasEvents ? 3 : 0)) : IncorrectIdx;
-  const unsigned LocalSizeElemPtrIdx = HasVarArgs ? (BaseArgIdx + 6 + (HasEvents ? 3 : 0)) : IncorrectIdx;
+  const unsigned LocalSizeNumElemIdx =
+      HasVarArgs ? (BaseArgIdx + 5 + (HasEvents ? 3 : 0)) : IncorrectIdx;
+  const unsigned LocalSizeElemPtrIdx =
+      HasVarArgs ? (BaseArgIdx + 6 + (HasEvents ? 3 : 0)) : IncorrectIdx;
 
-  const unsigned LastArgIdx = (BaseArgIdx + 4 + (HasEvents ? 3 : 0) + (HasVarArgs ? 2 : 0));
+  const unsigned LastArgIdx =
+      (BaseArgIdx + 4 + (HasEvents ? 3 : 0) + (HasVarArgs ? 2 : 0));
   assert(LastArgIdx < NumArgs && "Incorrect number arguments");
 
-
   /// 2. Process all arguments which requered preparation.
-  /// 2.1 Events - use Call arguments, or use dummy nulls in case of absence of events
+  /// 2.1 Events - use Call arguments, or use dummy nulls in case of absence of
+  /// events
   Register NumEventsReg;
   Register WaitEventsReg;
   Register RetEventReg;
@@ -2897,7 +2904,8 @@ static bool buildEnqueueKernel(const SPIRV::IncomingCall *Call,
   }
 
   /// 2.2 Invoke (Kernel)
-  assert(getBlockStructInstr(Call->Arguments[InvokeIdx], MRI)->getOpcode() == TargetOpcode::G_GLOBAL_VALUE);
+  assert(getBlockStructInstr(Call->Arguments[InvokeIdx], MRI)->getOpcode() ==
+         TargetOpcode::G_GLOBAL_VALUE);
 
   /// 2.3 Param, Param Size, Param Align
   Register BlockLiteralReg = Call->Arguments[ParamIdx];
@@ -2906,16 +2914,16 @@ static bool buildEnqueueKernel(const SPIRV::IncomingCall *Call,
       Int8Ty, MIRBuilder, SPIRV::StorageClass::Generic);
   Type *PType = const_cast<Type *>(getBlockStructType(BlockLiteralReg, MRI));
 
-  Register ParamReg =
-      createVirtualRegister(Int8PtrGen, GR, MIRBuilder);
+  Register ParamReg = createVirtualRegister(Int8PtrGen, GR, MIRBuilder);
   MIRBuilder.buildInstr(SPIRV::OpBitcast)
       .addDef(ParamReg)
       .addUse(GR->getSPIRVTypeID(Int8PtrGen))
       .addUse(BlockLiteralReg);
   /// TODO: these numbers should be obtained from block literal structure.
-  Register ParamSizeReg = buildConstantIntReg32(DL.getTypeStoreSize(PType), MIRBuilder, GR);
-  Register ParamAlignReg = buildConstantIntReg32(DL.getPrefTypeAlign(PType).value(), MIRBuilder, GR);
-
+  Register ParamSizeReg =
+      buildConstantIntReg32(DL.getTypeStoreSize(PType), MIRBuilder, GR);
+  Register ParamAlignReg =
+      buildConstantIntReg32(DL.getPrefTypeAlign(PType).value(), MIRBuilder, GR);
 
   /// 2.4 Local Size Array
   SmallVector<Register, 16> LocalSizes;
@@ -2923,7 +2931,8 @@ static bool buildEnqueueKernel(const SPIRV::IncomingCall *Call,
     Register LocalSizeNumElem = Call->Arguments[LocalSizeNumElemIdx];
     MachineInstr *LocalSizeNumElemMI = MRI->getUniqueVRegDef(LocalSizeNumElem);
     const MachineOperand &ConstOp = LocalSizeNumElemMI->getOperand(1);
-    assert(LocalSizeNumElemMI->getOpcode() == TargetOpcode::G_CONSTANT &&  ConstOp.isCImm() && "Expected constant immediate");
+    assert(LocalSizeNumElemMI->getOpcode() == TargetOpcode::G_CONSTANT &&
+           ConstOp.isCImm() && "Expected constant immediate");
     uint64_t NumElem = ConstOp.getCImm()->getValue().getZExtValue();
 
     Register LocalSizeArrayReg = Call->Arguments[LocalSizeElemPtrIdx];
@@ -2931,32 +2940,31 @@ static bool buildEnqueueKernel(const SPIRV::IncomingCall *Call,
     for (unsigned i = 0; i < NumElem; ++i) {
       Register Reg = MRI->createVirtualRegister(&SPIRV::pIDRegClass);
       auto GEPInst = MIRBuilder.buildIntrinsic(
-            Intrinsic::spv_gep, ArrayRef<Register>{Reg}, true, false);
+          Intrinsic::spv_gep, ArrayRef<Register>{Reg}, true, false);
       GEPInst
-          .addImm(0)                                            // In bound.
-          .addUse(LocalSizeArrayReg)                            // Base pointer.
-          .addUse(buildConstantIntReg32(0, MIRBuilder, GR))     // Indices.
+          .addImm(0)                                        // In bound.
+          .addUse(LocalSizeArrayReg)                        // Base pointer.
+          .addUse(buildConstantIntReg32(0, MIRBuilder, GR)) // Indices.
           .addUse(buildConstantIntReg32(i, MIRBuilder, GR));
       LocalSizes.push_back(Reg);
     }
   }
 
-
   /// 3. create a SPIRV operator with arguments.
   auto MIB = MIRBuilder.buildInstr(SPIRV::OpEnqueueKernel)
-    .addDef(Call->ReturnRegister)
-    .addUse(GR->getSPIRVTypeID(Int32Ty))
-    .addUse(Call->Arguments[QueueIdx])
-    .addUse(Call->Arguments[FlagsIdx])
-    .addUse(Call->Arguments[NDRangeIdx])
-    .addUse(NumEventsReg)
-    .addUse(WaitEventsReg)
-    .addUse(RetEventReg)
-    .addUse(Call->Arguments[InvokeIdx])
-    .addUse(ParamReg)
-    .addUse(ParamSizeReg)
-    .addUse(ParamAlignReg);
-  for (auto & LocalSize: LocalSizes)
+                 .addDef(Call->ReturnRegister)
+                 .addUse(GR->getSPIRVTypeID(Int32Ty))
+                 .addUse(Call->Arguments[QueueIdx])
+                 .addUse(Call->Arguments[FlagsIdx])
+                 .addUse(Call->Arguments[NDRangeIdx])
+                 .addUse(NumEventsReg)
+                 .addUse(WaitEventsReg)
+                 .addUse(RetEventReg)
+                 .addUse(Call->Arguments[InvokeIdx])
+                 .addUse(ParamReg)
+                 .addUse(ParamSizeReg)
+                 .addUse(ParamAlignReg);
+  for (auto &LocalSize : LocalSizes)
     MIB.addUse(LocalSize);
 
   return true;
