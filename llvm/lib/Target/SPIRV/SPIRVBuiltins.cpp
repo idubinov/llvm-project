@@ -2803,9 +2803,8 @@ static bool buildEnqueueKernel(const SPIRV::IncomingCall *Call,
   const SPIRVTypeInst Int8Ty = GR->getOrCreateSPIRVIntegerType(8, MIRBuilder);
   const SPIRVTypeInst Int8PtrGen = GR->getOrCreateSPIRVPointerType(
       Int8Ty, MIRBuilder, SPIRV::StorageClass::Generic);
-  const Type *PType = getBlockStructType(BlockLiteralReg, MRI);
+  Type *PType = const_cast<Type *>(getBlockStructType(BlockLiteralReg, MRI));
 
-  /// TODO: check if already Int8Ptr
   Register ParamReg =
       createVirtualRegister(Int8PtrGen, GR, MIRBuilder);
   MIRBuilder.buildInstr(SPIRV::OpBitcast)
@@ -2813,8 +2812,8 @@ static bool buildEnqueueKernel(const SPIRV::IncomingCall *Call,
       .addUse(GR->getSPIRVTypeID(Int8PtrGen))
       .addUse(BlockLiteralReg);
   /// TODO: these numbers should be obtained from block literal structure.
-  Register ParamSizeReg = buildConstantIntReg32(DL.getTypeStoreSize(const_cast<Type *>(PType)), MIRBuilder, GR);
-  Register ParamAlignReg = buildConstantIntReg32(DL.getPrefTypeAlign(const_cast<Type *>(PType)).value(), MIRBuilder, GR);
+  Register ParamSizeReg = buildConstantIntReg32(DL.getTypeStoreSize(PType), MIRBuilder, GR);
+  Register ParamAlignReg = buildConstantIntReg32(DL.getPrefTypeAlign(PType).value(), MIRBuilder, GR);
 
 
   /// 2.4 Local Size Array
