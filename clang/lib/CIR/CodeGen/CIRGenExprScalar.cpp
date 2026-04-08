@@ -694,7 +694,8 @@ public:
         return {};
       }
 
-      if (mlir::isa<cir::SingleType, cir::DoubleType>(value.getType())) {
+      if (mlir::isa<cir::SingleType, cir::DoubleType, cir::LongDoubleType>(
+              value.getType())) {
         // Create the inc/dec operation.
         // NOTE(CIR): clang calls CreateAdd but folds this to a unary op
         value = emitIncOrDec(e, value);
@@ -1325,10 +1326,6 @@ public:
           mlir::Value res = cgf.evaluateExprAsBool(e->getRHS());
           lexScope.forceCleanup({&res});
           cir::YieldOp::create(b, loc, res);
-          if (res.getParentBlock() != builder.getInsertionBlock())
-            cgf.cgm.errorNYI(
-                e->getSourceRange(),
-                "ScalarExprEmitter: VisitBinLAnd ternary with cleanup");
         },
         /*falseBuilder*/
         [&](mlir::OpBuilder &b, mlir::Location loc) {
@@ -1382,10 +1379,6 @@ public:
           mlir::Value res = cgf.evaluateExprAsBool(e->getRHS());
           lexScope.forceCleanup({&res});
           cir::YieldOp::create(b, loc, res);
-          if (res.getParentBlock() != builder.getInsertionBlock())
-            cgf.cgm.errorNYI(
-                e->getSourceRange(),
-                "ScalarExprEmitter: VisitBinLOr ternary with cleanup");
         });
 
     return maybePromoteBoolResult(resOp.getResult(), resTy);
@@ -1993,7 +1986,7 @@ mlir::Value ScalarExprEmitter::emitSub(const BinOpInfo &ops) {
 mlir::Value ScalarExprEmitter::emitShl(const BinOpInfo &ops) {
   // TODO: This misses out on the sanitizer check below.
   if (ops.isFixedPointOp()) {
-    assert(cir::MissingFeatures::fixedPointType());
+    assert(!cir::MissingFeatures::fixedPointType());
     cgf.cgm.errorNYI("fixed point");
     return {};
   }
@@ -2025,7 +2018,7 @@ mlir::Value ScalarExprEmitter::emitShl(const BinOpInfo &ops) {
 mlir::Value ScalarExprEmitter::emitShr(const BinOpInfo &ops) {
   // TODO: This misses out on the sanitizer check below.
   if (ops.isFixedPointOp()) {
-    assert(cir::MissingFeatures::fixedPointType());
+    assert(!cir::MissingFeatures::fixedPointType());
     cgf.cgm.errorNYI("fixed point");
     return {};
   }
