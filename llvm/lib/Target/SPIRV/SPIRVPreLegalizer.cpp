@@ -404,7 +404,7 @@ static unsigned widenScalarType(Register Reg, MachineRegisterInfo &MRI) {
     return 0;
   unsigned CurrentWidth = RegType.getScalarSizeInBits();
   unsigned NewWidth = widenBitWidthToNextPow2(CurrentWidth);
-  if (NewWidth != CurrentWidth){
+  if (NewWidth != CurrentWidth) {
     MRI.setType(Reg, LLT::scalar(NewWidth));
     return CurrentWidth;
   }
@@ -416,7 +416,7 @@ static unsigned widenCImmType(MachineOperand &MOP) {
   const ConstantInt *CImmVal = MOP.getCImm();
   unsigned CurrentWidth = CImmVal->getBitWidth();
   unsigned NewWidth = widenBitWidthToNextPow2(CurrentWidth);
-  if (NewWidth == CurrentWidth) 
+  if (NewWidth == CurrentWidth)
     return 0;
 
   // Replace the immediate value with the widened version
@@ -502,15 +502,16 @@ generateAssignInstrs(MachineFunction &MF, SPIRVGlobalRegistry *GR,
       ST->canUseExtension(SPIRV::Extension::SPV_INTEL_int4);
 
   if (!IsExtendedInts) {
-    // Some instructions' behavior relies on register size, e.g. G_TRUNC. Process them before general register widening.
+    // Some instructions' behavior relies on register size, e.g. G_TRUNC.
+    // Process them before general register widening.
     for (MachineBasicBlock &MBB : MF) {
-      for (MachineInstr &MI: MBB) {
+      for (MachineInstr &MI : MBB) {
         unsigned MIOp = MI.getOpcode();
         if (MIOp == TargetOpcode::G_TRUNC) {
           assert(MI.getNumOperands() == 2);
-          
+
           widenOperand(MI.getOperand(1), MRI); // SRC
-          
+
           unsigned OriginalDstWidth = widenOperand(MI.getOperand(0), MRI);
           if (OriginalDstWidth != 0) {
             // Dst was widened - replace G_TRUNC with G_AND & appropriate mask.
