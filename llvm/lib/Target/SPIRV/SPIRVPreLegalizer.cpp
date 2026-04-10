@@ -397,25 +397,40 @@ static unsigned widenBitWidthToNextPow2(unsigned BitWidth) {
   return std::min(std::max(1u << Log2_32_Ceil(BitWidth), 8u), 128u);
 }
 
-static void widenScalarType(Register Reg, MachineRegisterInfo &MRI) {
+static unsigned widenScalarType(Register Reg, MachineRegisterInfo &MRI) {
+  // returns original size or 0 if no change
   LLT RegType = MRI.getType(Reg);
   if (!RegType.isScalar())
-    return;
+    return 0;
   unsigned CurrentWidth = RegType.getScalarSizeInBits();
   unsigned NewWidth = widenBitWidthToNextPow2(CurrentWidth);
-  if (NewWidth != CurrentWidth)
+  if (NewWidth != CurrentWidth){
     MRI.setType(Reg, LLT::scalar(NewWidth));
+    return CurrentWidth;
+  }
+  return 0;
 }
 
-static void widenCImmType(MachineOperand &MOP) {
+static unsigned widenCImmType(MachineOperand &MOP) {
+  // returns original size or 0 if no change
   const ConstantInt *CImmVal = MOP.getCImm();
   unsigned CurrentWidth = CImmVal->getBitWidth();
   unsigned NewWidth = widenBitWidthToNextPow2(CurrentWidth);
-  if (NewWidth != CurrentWidth) {
-    // Replace the immediate value with the widened version
-    MOP.setCImm(ConstantInt::get(CImmVal->getType()->getContext(),
-                                 CImmVal->getValue().zextOrTrunc(NewWidth)));
-  }
+  if (NewWidth == CurrentWidth) 
+    return 0;
+
+  // Replace the immediate value with the widened version
+  MOP.setCImm(ConstantInt::get(CImmVal->getType()->getContext(),
+                               CImmVal->getValue().zextOrTrunc(NewWidth)));
+  return CurrentWidth;
+}
+
+static unsigned widenOperand(MachineOperand &MOP, MachineRegisterInfo &MRI) {
+  // returns original size or 0 if no change
+  if (MOP.isReg())
+    return widenScalarType(MOP.getReg(), MRI);
+  else if (MOP.isCImm())
+    return widenCImmType(MOP);
 }
 
 static void setInsertPtAfterDef(MachineIRBuilder &MIB, MachineInstr *Def) {
@@ -485,6 +500,38 @@ generateAssignInstrs(MachineFunction &MF, SPIRVGlobalRegistry *GR,
           SPIRV::Extension::SPV_ALTERA_arbitrary_precision_integers) ||
       ST->canUseExtension(SPIRV::Extension::SPV_KHR_bit_instructions) ||
       ST->canUseExtension(SPIRV::Extension::SPV_INTEL_int4);
+
+  if (!IsExtendedInts) {
+    // Some instructions' behavior relies on register size, e.g. G_TRUNC. Process them before general register widening.
+    for (MachineBasicBlock &MBB : MF) {
+      for (MachineInstr &MI: MBB) {
+        unsigned MIOp = MI.getOpcode();
+        if (MIOp == TargetOpcode::G_TRUNC) {
+          assert(MI.getNumOperands() == 2);
+          
+          widenOperand(MI.getOperand(1), MRI); // SRC
+          
+          unsigned OriginalDstWidth = widenOperand(MI.getOperand(0), MRI);
+          if (OriginalDstWidth != 0) {
+            // Dst was widened - replace G_TRUNC with G_AND & appropriate mask.
+            Register DstReg = MI.getOperand(0).getReg();
+            Register SrcReg = MI.getOperand(1).getReg();
+            unsigned NewDstWidth = MRI.getType(DstReg).getScalarSizeInBits();
+
+            // Create mask constant with lower OriginalDstWidth bits set.
+            MIB.setInsertPt(MBB, MI.getIterator());
+            APInt Mask = APInt::getLowBitsSet(NewDstWidth, OriginalDstWidth);
+            auto MaskReg = MIB.buildConstant(LLT::scalar(NewDstWidth), Mask);
+
+            // Replace G_TRUNC with G_AND.
+            MI.setDesc(ST->getInstrInfo()->get(TargetOpcode::G_AND));
+            MI.getOperand(1).setReg(SrcReg);
+            MI.addOperand(MachineOperand::CreateReg(MaskReg.getReg(0), false));
+          }
+        }
+      }
+    }
+  }
 
   for (MachineBasicBlock *MBB : post_order(&MF)) {
     if (MBB->empty())
