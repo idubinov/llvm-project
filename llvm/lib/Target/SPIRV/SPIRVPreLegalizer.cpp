@@ -429,8 +429,9 @@ static unsigned widenOperand(MachineOperand &MOP, MachineRegisterInfo &MRI) {
   // Returns original size or 0 if no change.
   if (MOP.isReg())
     return widenScalarType(MOP.getReg(), MRI);
-  else if (MOP.isCImm())
+  if (MOP.isCImm())
     return widenCImmType(MOP);
+  return 0;
 }
 
 static void setInsertPtAfterDef(MachineIRBuilder &MIB, MachineInstr *Def) {
