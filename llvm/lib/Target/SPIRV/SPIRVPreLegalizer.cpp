@@ -524,8 +524,8 @@ generateAssignInstrs(MachineFunction &MF, SPIRVGlobalRegistry *GR,
         // G_AND: Src's width should be equal Dst width, use bigger of them.
         unsigned NewWidth = std::max(NewDstWidth, NewSrcWidth);
 
-        // TODO: Check dependencies, this Src widening can poison register size
-        // of other instructions.
+        // TODO: Check dependencies, this Src widening can change register size
+        // of other instruction's Dst which can change behaviour.
         if (OriginalSrcWidth != NewWidth)
           MRI.setType(SrcReg, LLT::scalar(NewWidth));
 
