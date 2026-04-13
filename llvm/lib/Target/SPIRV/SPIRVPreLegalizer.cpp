@@ -503,34 +503,30 @@ generateAssignInstrs(MachineFunction &MF, SPIRVGlobalRegistry *GR,
       ST->canUseExtension(SPIRV::Extension::SPV_INTEL_int4);
 
   if (!IsExtendedInts) {
-    // Some instructions' behavior relies on register size, e.g. G_TRUNC.
-    // Process them before general register widening.
+    // G_TRUNC rely on register size. The general register widening changes G_TRUNC instruction behaviour. Process G_TRUNK before operators widening.
     for (MachineBasicBlock &MBB : MF) {
       for (MachineInstr &MI : MBB) {
         unsigned MIOp = MI.getOpcode();
-        if (MIOp == TargetOpcode::G_TRUNC) {
-          assert(MI.getNumOperands() == 2);
+        if (MIOp != TargetOpcode::G_TRUNC)
+          continue;
+        assert(MI.getNumOperands() == 2);
 
-          widenOperand(MI.getOperand(1), MRI); // SRC.
+        unsigned OriginalDstWidth = widenOperand(MI.getOperand(0), MRI);
+        if (OriginalDstWidth == 0)
+          continue;
+        // Dst was widened - replace G_TRUNC with G_AND & appropriate mask.
+        Register DstReg = MI.getOperand(0).getReg();
+        Register SrcReg = MI.getOperand(1).getReg();
+        unsigned NewDstWidth = MRI.getType(DstReg).getScalarSizeInBits();
 
-          unsigned OriginalDstWidth = widenOperand(MI.getOperand(0), MRI);
-          if (OriginalDstWidth != 0) {
-            // Dst was widened - replace G_TRUNC with G_AND & appropriate mask.
-            Register DstReg = MI.getOperand(0).getReg();
-            Register SrcReg = MI.getOperand(1).getReg();
-            unsigned NewDstWidth = MRI.getType(DstReg).getScalarSizeInBits();
+        // Create mask constant with lower OriginalDstWidth bits set.
+        MIB.setInsertPt(MBB, MI.getIterator());
+        APInt Mask = APInt::getLowBitsSet(NewDstWidth, OriginalDstWidth);
+        auto MaskReg = MIB.buildConstant(LLT::scalar(NewDstWidth), Mask);
 
-            // Create mask constant with lower OriginalDstWidth bits set.
-            MIB.setInsertPt(MBB, MI.getIterator());
-            APInt Mask = APInt::getLowBitsSet(NewDstWidth, OriginalDstWidth);
-            auto MaskReg = MIB.buildConstant(LLT::scalar(NewDstWidth), Mask);
-
-            // Replace G_TRUNC with G_AND.
-            MI.setDesc(ST->getInstrInfo()->get(TargetOpcode::G_AND));
-            MI.getOperand(1).setReg(SrcReg);
-            MI.addOperand(MachineOperand::CreateReg(MaskReg.getReg(0), false));
-          }
-        }
+        MI.setDesc(ST->getInstrInfo()->get(TargetOpcode::G_AND));
+        MI.getOperand(1).setReg(SrcReg);
+        MI.addOperand(MachineOperand::CreateReg(MaskReg.getReg(0), false));
       }
     }
   }
