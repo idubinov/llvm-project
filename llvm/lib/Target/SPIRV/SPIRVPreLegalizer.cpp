@@ -503,6 +503,7 @@ generateAssignInstrs(MachineFunction &MF, SPIRVGlobalRegistry *GR,
         Register DstReg = MI.getOperand(0).getReg();
         Register SrcReg = MI.getOperand(1).getReg();
 
+        // TODO: handle vector types.
         if (!MRI.getType(DstReg).isScalar()) {
           assert(!MRI.getType(SrcReg).isScalar());
           continue;
@@ -515,32 +516,28 @@ generateAssignInstrs(MachineFunction &MF, SPIRVGlobalRegistry *GR,
         unsigned NewDstWidth = widenBitWidthToNextPow2(OriginalDstWidth);
         unsigned NewSrcWidth = widenBitWidthToNextPow2(OriginalSrcWidth);
 
-        // No Dst width change -> no semantics change, use default widening
+        // No Dst width change -> no semantics change, use default widening.
         if (OriginalDstWidth == NewDstWidth)
           continue;
 
-        // Src width should be equal Dst width, use bigger of them
+        // DST will be widened - replace G_TRUNC with G_AND & mask to preserve
+        // truncation semantics.
+        // G_AND: Src's width should be equal Dst width, use bigger of them.
         unsigned NewWidth = std::max(NewDstWidth, NewSrcWidth);
 
+        // TODO: Check dependencies, this Src widening can poison register size
+        // of other instructions.
         if (OriginalSrcWidth != NewWidth)
           MRI.setType(SrcReg, LLT::scalar(NewWidth));
 
-        if (OriginalDstWidth == NewWidth)
-          continue;
-
         MRI.setType(DstReg, LLT::scalar(NewWidth));
 
-        // DST was widened - replace G_TRUNC with G_AND & mask to preserve
-        // truncation semantics.
         MIB.setInsertPt(MBB, MI.getIterator());
         APInt Mask = APInt::getLowBitsSet(NewWidth, OriginalDstWidth);
         auto MaskReg = MIB.buildConstant(LLT::scalar(NewWidth), Mask);
 
         MI.setDesc(ST->getInstrInfo()->get(TargetOpcode::G_AND));
-        // MI.getOperand(1) is the same.
         MI.addOperand(MachineOperand::CreateReg(MaskReg.getReg(0), false));
-
-        // SRC0 will be correctly widened during general register widening.
       }
     }
   }
