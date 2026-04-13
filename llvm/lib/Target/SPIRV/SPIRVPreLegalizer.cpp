@@ -398,7 +398,7 @@ static unsigned widenBitWidthToNextPow2(unsigned BitWidth) {
 }
 
 static unsigned widenScalarType(Register Reg, MachineRegisterInfo &MRI) {
-  // returns original size or 0 if no change
+  // Returns original size or 0 if no change.
   LLT RegType = MRI.getType(Reg);
   if (!RegType.isScalar())
     return 0;
@@ -412,21 +412,21 @@ static unsigned widenScalarType(Register Reg, MachineRegisterInfo &MRI) {
 }
 
 static unsigned widenCImmType(MachineOperand &MOP) {
-  // returns original size or 0 if no change
+  // Returns original size or 0 if no change.
   const ConstantInt *CImmVal = MOP.getCImm();
   unsigned CurrentWidth = CImmVal->getBitWidth();
   unsigned NewWidth = widenBitWidthToNextPow2(CurrentWidth);
   if (NewWidth == CurrentWidth)
     return 0;
 
-  // Replace the immediate value with the widened version
+  // Replace the immediate value with the widened version.
   MOP.setCImm(ConstantInt::get(CImmVal->getType()->getContext(),
                                CImmVal->getValue().zextOrTrunc(NewWidth)));
   return CurrentWidth;
 }
 
 static unsigned widenOperand(MachineOperand &MOP, MachineRegisterInfo &MRI) {
-  // returns original size or 0 if no change
+  // Returns original size or 0 if no change.
   if (MOP.isReg())
     return widenScalarType(MOP.getReg(), MRI);
   else if (MOP.isCImm())
@@ -510,7 +510,7 @@ generateAssignInstrs(MachineFunction &MF, SPIRVGlobalRegistry *GR,
         if (MIOp == TargetOpcode::G_TRUNC) {
           assert(MI.getNumOperands() == 2);
 
-          widenOperand(MI.getOperand(1), MRI); // SRC
+          widenOperand(MI.getOperand(1), MRI); // SRC.
 
           unsigned OriginalDstWidth = widenOperand(MI.getOperand(0), MRI);
           if (OriginalDstWidth != 0) {

@@ -43,7 +43,7 @@
 ; CHECK-NOEXT: %[[#TqNoext:]] = OpBitwiseAnd %[[#]] %[[#Q]] %[[#]]
 ; CHECK-NOEXT: OpStore %[[#QArg]] %[[#TqNoext]]
 
-; Test 3: trunc to small non-standard width (i64 -> i24)
+; Test 3: trunc to small non-standard width (i64 -> i24).
 ; CHECK: OpFunction
 ; CHECK: %[[#T3Arg:]] = OpFunctionParameter
 ; CHECK: %[[#T3Val:]] = OpFunctionParameter
@@ -52,8 +52,8 @@
 ; CHECK-NOEXT: %[[#T3Noext:]] = OpBitwiseAnd %[[#]] %[[#T3Val]] %[[#]]
 ; CHECK-NOEXT: OpStore %[[#T3Arg]] %[[#T3Noext]]
 
-; Test 4: trunc to i5 (non-power-of-2, < 8 bits)
-; In NOEXT mode, i5 widens to i8, so mask with 0x1F
+; Test 4: trunc to i5 (non-power-of-2, < 8 bits).
+; In NOEXT mode, i5 widens to i8, so mask with 0x1F.
 ; CHECK: OpFunction
 ; CHECK: %[[#T4Arg:]] = OpFunctionParameter
 ; CHECK: %[[#T4Val:]] = OpFunctionParameter
@@ -77,14 +77,14 @@ define spir_kernel void @bar(ptr addrspace(1) %qarg, i50 %q) {
   ret void
 }
 
-; trunc to small non-standard width (i64 -> i24)
+; Trunc to small non-standard width (i64 -> i24).
 define spir_kernel void @trunc_to_i24(ptr addrspace(1) %arg, i64 %val) {
   %tr = trunc i64 %val to i24
   store i24 %tr, ptr addrspace(1) %arg
   ret void
 }
 
-; trunc to i5 (non-power-of-2, < 8 bits)
+; Trunc to i5 (non-power-of-2, < 8 bits).
 define spir_kernel void @trunc_to_i5(ptr addrspace(1) %arg, i16 %val) {
   %tr = trunc i16 %val to i5
   store i5 %tr, ptr addrspace(1) %arg
