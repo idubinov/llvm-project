@@ -503,7 +503,10 @@ generateAssignInstrs(MachineFunction &MF, SPIRVGlobalRegistry *GR,
       ST->canUseExtension(SPIRV::Extension::SPV_INTEL_int4);
 
   if (!IsExtendedInts) {
-    // G_TRUNC rely on register size. The general register widening changes G_TRUNC instruction behaviour. Process G_TRUNK before operators widening.
+    // G_TRUNC rely on DST register size. The general register widening changes
+    // G_TRUNC instruction behaviour in case of change of DSR register size.
+    // Process widening of G_TRUNK separately, before general operators
+    // widening.
     for (MachineBasicBlock &MBB : MF) {
       for (MachineInstr &MI : MBB) {
         unsigned MIOp = MI.getOpcode();
@@ -514,19 +517,21 @@ generateAssignInstrs(MachineFunction &MF, SPIRVGlobalRegistry *GR,
         unsigned OriginalDstWidth = widenOperand(MI.getOperand(0), MRI);
         if (OriginalDstWidth == 0)
           continue;
-        // Dst was widened - replace G_TRUNC with G_AND & appropriate mask.
+
+        // DST was widened - replace G_TRUNC with G_AND & mask to preserve
+        // truncation semantics.
         Register DstReg = MI.getOperand(0).getReg();
-        Register SrcReg = MI.getOperand(1).getReg();
         unsigned NewDstWidth = MRI.getType(DstReg).getScalarSizeInBits();
 
-        // Create mask constant with lower OriginalDstWidth bits set.
         MIB.setInsertPt(MBB, MI.getIterator());
         APInt Mask = APInt::getLowBitsSet(NewDstWidth, OriginalDstWidth);
         auto MaskReg = MIB.buildConstant(LLT::scalar(NewDstWidth), Mask);
 
         MI.setDesc(ST->getInstrInfo()->get(TargetOpcode::G_AND));
-        MI.getOperand(1).setReg(SrcReg);
+        // MI.getOperand(1) is the same.
         MI.addOperand(MachineOperand::CreateReg(MaskReg.getReg(0), false));
+
+        // SRC0 will be correctly widened during general register widening.
       }
     }
   }
