@@ -397,41 +397,25 @@ static unsigned widenBitWidthToNextPow2(unsigned BitWidth) {
   return std::min(std::max(1u << Log2_32_Ceil(BitWidth), 8u), 128u);
 }
 
-static unsigned widenScalarType(Register Reg, MachineRegisterInfo &MRI) {
-  // Returns original size or 0 if no change.
+static void widenScalarType(Register Reg, MachineRegisterInfo &MRI) {
   LLT RegType = MRI.getType(Reg);
   if (!RegType.isScalar())
-    return 0;
+    return;
   unsigned CurrentWidth = RegType.getScalarSizeInBits();
   unsigned NewWidth = widenBitWidthToNextPow2(CurrentWidth);
-  if (NewWidth != CurrentWidth) {
+  if (NewWidth != CurrentWidth)
     MRI.setType(Reg, LLT::scalar(NewWidth));
-    return CurrentWidth;
-  }
-  return 0;
 }
 
-static unsigned widenCImmType(MachineOperand &MOP) {
-  // Returns original size or 0 if no change.
+static void widenCImmType(MachineOperand &MOP) {
   const ConstantInt *CImmVal = MOP.getCImm();
   unsigned CurrentWidth = CImmVal->getBitWidth();
   unsigned NewWidth = widenBitWidthToNextPow2(CurrentWidth);
-  if (NewWidth == CurrentWidth)
-    return 0;
-
-  // Replace the immediate value with the widened version.
-  MOP.setCImm(ConstantInt::get(CImmVal->getType()->getContext(),
-                               CImmVal->getValue().zextOrTrunc(NewWidth)));
-  return CurrentWidth;
-}
-
-static unsigned widenOperand(MachineOperand &MOP, MachineRegisterInfo &MRI) {
-  // Returns original size or 0 if no change.
-  if (MOP.isReg())
-    return widenScalarType(MOP.getReg(), MRI);
-  if (MOP.isCImm())
-    return widenCImmType(MOP);
-  return 0;
+  if (NewWidth != CurrentWidth) {
+    // Replace the immediate value with the widened version
+    MOP.setCImm(ConstantInt::get(CImmVal->getType()->getContext(),
+                                 CImmVal->getValue().zextOrTrunc(NewWidth)));
+  }
 }
 
 static void setInsertPtAfterDef(MachineIRBuilder &MIB, MachineInstr *Def) {
@@ -513,19 +497,44 @@ generateAssignInstrs(MachineFunction &MF, SPIRVGlobalRegistry *GR,
         if (MIOp != TargetOpcode::G_TRUNC)
           continue;
         assert(MI.getNumOperands() == 2);
+        assert(MI.getOperand(0).isReg());
+        assert(MI.getOperand(1).isReg());
 
-        unsigned OriginalDstWidth = widenOperand(MI.getOperand(0), MRI);
-        if (OriginalDstWidth == 0)
+        Register DstReg = MI.getOperand(0).getReg();
+        Register SrcReg = MI.getOperand(1).getReg();
+
+        if (!MRI.getType(DstReg).isScalar()) {
+          assert(!MRI.getType(SrcReg).isScalar());
           continue;
+        }
+
+        unsigned OriginalDstWidth = MRI.getType(DstReg).getScalarSizeInBits();
+        unsigned OriginalSrcWidth = MRI.getType(SrcReg).getScalarSizeInBits();
+        assert(OriginalDstWidth < OriginalSrcWidth && "Due to LLVM spec.");
+
+        unsigned NewDstWidth = widenBitWidthToNextPow2(OriginalDstWidth);
+        unsigned NewSrcWidth = widenBitWidthToNextPow2(OriginalSrcWidth);
+
+        // No Dst width change -> no semantics change, use default widening
+        if (OriginalDstWidth == NewDstWidth)
+          continue;
+
+        // Src width should be equal Dst width, use bigger of them
+        unsigned NewWidth = std::max(NewDstWidth, NewSrcWidth);
+
+        if (OriginalSrcWidth != NewWidth)
+          MRI.setType(SrcReg, LLT::scalar(NewWidth));
+
+        if (OriginalDstWidth == NewWidth)
+          continue;
+
+        MRI.setType(DstReg, LLT::scalar(NewWidth));
 
         // DST was widened - replace G_TRUNC with G_AND & mask to preserve
         // truncation semantics.
-        Register DstReg = MI.getOperand(0).getReg();
-        unsigned NewDstWidth = MRI.getType(DstReg).getScalarSizeInBits();
-
         MIB.setInsertPt(MBB, MI.getIterator());
-        APInt Mask = APInt::getLowBitsSet(NewDstWidth, OriginalDstWidth);
-        auto MaskReg = MIB.buildConstant(LLT::scalar(NewDstWidth), Mask);
+        APInt Mask = APInt::getLowBitsSet(NewWidth, OriginalDstWidth);
+        auto MaskReg = MIB.buildConstant(LLT::scalar(NewWidth), Mask);
 
         MI.setDesc(ST->getInstrInfo()->get(TargetOpcode::G_AND));
         // MI.getOperand(1) is the same.
