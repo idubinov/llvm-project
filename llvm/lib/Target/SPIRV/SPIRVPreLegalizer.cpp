@@ -487,10 +487,24 @@ generateAssignInstrs(MachineFunction &MF, SPIRVGlobalRegistry *GR,
       ST->canUseExtension(SPIRV::Extension::SPV_INTEL_int4);
 
   if (!IsExtendedInts) {
-    // G_TRUNC rely on DST register size. The general register widening changes
-    // G_TRUNC instruction behaviour in case of change of DSR register size.
-    // Process widening of G_TRUNK separately, before general operators
-    // widening.
+    // Without arbitrary precision integer extensions, SPIR-V only supports
+    // integer widths of 8, 16, 32, 64. Non-standard widths (e.g., i24, i40)
+    // must be widened to the next power of two.
+    //
+    // G_TRUNC requires special handling because its semantics depend on the
+    // original destination width. For example:
+    //   %dst:s24 = G_TRUNC %src:s64
+    // After widening s24 to s32, we cannot simply do:
+    //   %dst:s32 = G_TRUNC %src:s64
+    // because this would keep 32 bits instead of 24. Instead, we insert a
+    // G_AND to mask the value to the original width:
+    //   %mask:s64 = G_CONSTANT 0xFFFFFF      ; 24-bit mask
+    //   %masked:s64 = G_AND %src:s64, %mask
+    //   %dst:s32 = G_TRUNC %masked:s64
+    // If src and dst widen to the same size, G_TRUNC is replaced entirely:
+    //   %mask:s64 = G_CONSTANT 0xFFFFFFFFFF  ; 40-bit mask
+    //   %dst:s64 = G_AND %src:s64, %mask
+    SmallVector<MachineInstr *, 8> TruncToRemove;
     for (MachineBasicBlock &MBB : MF) {
       for (MachineInstr &MI : MBB) {
         unsigned MIOp = MI.getOpcode();
@@ -515,30 +529,30 @@ generateAssignInstrs(MachineFunction &MF, SPIRVGlobalRegistry *GR,
         unsigned NewDstWidth = widenBitWidthToNextPow2(OriginalDstWidth);
         unsigned NewSrcWidth = widenBitWidthToNextPow2(OriginalSrcWidth);
 
-        // No Dst width change -> no semantics change, use default widening.
+        // No Dst width change means no truncation semantics change.
         if (OriginalDstWidth == NewDstWidth)
           continue;
 
-        // DST will be widened - replace G_TRUNC with G_AND & mask to preserve
-        // truncation semantics.
-        // G_AND: Src's width should be equal Dst width, use bigger of them.
-        unsigned NewWidth = std::max(NewDstWidth, NewSrcWidth);
-
-        // TODO: Check dependencies, this Src widening can change register size
-        // of other instruction's Dst which can change behaviour.
-        if (OriginalSrcWidth != NewWidth)
-          MRI.setType(SrcReg, LLT::scalar(NewWidth));
-
-        MRI.setType(DstReg, LLT::scalar(NewWidth));
+        MRI.setType(SrcReg, LLT::scalar(NewSrcWidth));
+        MRI.setType(DstReg, LLT::scalar(NewDstWidth));
 
         MIB.setInsertPt(MBB, MI.getIterator());
-        APInt Mask = APInt::getLowBitsSet(NewWidth, OriginalDstWidth);
-        auto MaskReg = MIB.buildConstant(LLT::scalar(NewWidth), Mask);
+        APInt Mask = APInt::getLowBitsSet(NewSrcWidth, OriginalDstWidth);
+        auto MaskReg = MIB.buildConstant(LLT::scalar(NewSrcWidth), Mask);
+        Register MaskedReg =
+            MRI.createGenericVirtualRegister(LLT::scalar(NewSrcWidth));
+        MIB.buildAnd(MaskedReg, SrcReg, MaskReg);
 
-        MI.setDesc(ST->getInstrInfo()->get(TargetOpcode::G_AND));
-        MI.addOperand(MachineOperand::CreateReg(MaskReg.getReg(0), false));
+        if (NewSrcWidth == NewDstWidth) {
+          MRI.replaceRegWith(DstReg, MaskedReg);
+          TruncToRemove.push_back(&MI);
+        } else {
+          MI.getOperand(1).setReg(MaskedReg);
+        }
       }
     }
+    for (MachineInstr *MI : TruncToRemove)
+      MI->eraseFromParent();
   }
 
   for (MachineBasicBlock *MBB : post_order(&MF)) {
