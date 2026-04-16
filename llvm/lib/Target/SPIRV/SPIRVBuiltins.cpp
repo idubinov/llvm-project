@@ -2816,7 +2816,6 @@ static bool buildEnqueueKernel(const SPIRV::IncomingCall *Call,
   //      NumElem, ElemPtr};
   //
   // We also may expect __spirv_EnqueueKernel
-  /// TODO: handle __spirv_EnqueueKernel
 
   bool IsSpirvOp = Call->isSpirvOp();
   bool HasEvents = Call->Builtin->Name.contains("_events") || IsSpirvOp;
@@ -2843,9 +2842,9 @@ static bool buildEnqueueKernel(const SPIRV::IncomingCall *Call,
       (BaseArgIdx + 4 + (HasEvents ? 3 : 0) + (HasVarArgs ? 2 : 0));
   assert(LastArgIdx < NumArgs && "Incorrect number arguments");
 
-  /// 2. Process all arguments which requered preparation.
-  /// 2.1 Events - use Call arguments, or use dummy nulls in case of absence of
-  /// events
+  // 2. Process all arguments which requered preparation.
+  // 2.1 Events - use Call arguments, or use dummy nulls in case of absence of
+  // events
   Register NumEventsReg;
   Register WaitEventsReg;
   Register RetEventReg;
@@ -2861,11 +2860,11 @@ static bool buildEnqueueKernel(const SPIRV::IncomingCall *Call,
     RetEventReg = NullPtr;
   }
 
-  /// 2.2 Invoke (Kernel)
+  // 2.2 Invoke (Kernel)
   assert(getBlockStructInstr(Call->Arguments[InvokeIdx], MRI)->getOpcode() ==
          TargetOpcode::G_GLOBAL_VALUE);
 
-  /// 2.3 Param, Param Size, Param Align
+  // 2.3 Param, Param Size, Param Align
   Register BlockLiteralReg = Call->Arguments[ParamIdx];
   const SPIRVTypeInst Int8Ty = GR->getOrCreateSPIRVIntegerType(8, MIRBuilder);
   const SPIRVTypeInst Int8PtrGen = GR->getOrCreateSPIRVPointerType(
@@ -2877,13 +2876,13 @@ static bool buildEnqueueKernel(const SPIRV::IncomingCall *Call,
       .addDef(ParamReg)
       .addUse(GR->getSPIRVTypeID(Int8PtrGen))
       .addUse(BlockLiteralReg);
-  /// TODO: these numbers should be obtained from block literal structure.
+  // TODO: these numbers should be obtained from block literal structure.
   Register ParamSizeReg =
       buildConstantIntReg32(DL.getTypeStoreSize(PType), MIRBuilder, GR);
   Register ParamAlignReg =
       buildConstantIntReg32(DL.getPrefTypeAlign(PType).value(), MIRBuilder, GR);
 
-  /// 2.4 Local Size Array
+  // 2.4 Local Size Array
   SmallVector<Register, 16> LocalSizes;
   if (HasVarArgs) {
     Register LocalSizeNumElem = Call->Arguments[LocalSizeNumElemIdx];
@@ -2908,7 +2907,7 @@ static bool buildEnqueueKernel(const SPIRV::IncomingCall *Call,
     }
   }
 
-  /// 3. create a SPIRV operator with arguments.
+  // 3. create a SPIRV operator with arguments.
   auto MIB = MIRBuilder.buildInstr(SPIRV::OpEnqueueKernel)
                  .addDef(Call->ReturnRegister)
                  .addUse(GR->getSPIRVTypeID(Int32Ty))

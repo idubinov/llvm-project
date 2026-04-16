@@ -22,6 +22,9 @@
 ; CHECK-DAG: %[[#nullPtrInt8:]] = OpConstantNull %[[#pointerInt8]]
 ; CHECK-DAG: %[[#nullArray3x64:]] = OpConstantNull %[[#Array3x64]]
 
+; CHECK-LABEL: ; -- Begin function test_spirv_enqueue_kernel
+; CHECK: %[[#]] = OpEnqueueKernel %[[#typeInt32]] %[[#]] %[[#Num0i32]] %[[#]] %[[#Num0i32]] %[[#nullPtrInt8]] %[[#nullPtrInt8]] %[[#]] %[[#]] %[[#Num8i32]] %[[#Num8i32]]
+
 ; CHECK-LABEL: ; -- Begin function device_side_enqueue
 
 ; CHECK: %[[#NDRange3sret:]] = OpBuildNDRange %[[#TypeNDRangeStruct]] %[[#]] %[[#nullArray3x64]] %[[#nullArray3x64]]
@@ -91,6 +94,40 @@
 %struct.ndrange_t = type { i32, [3 x i64], [3 x i64], [3 x i64] }
 
 @__const.device_side_enqueue.gs = private unnamed_addr addrspace(2) constant [3 x i64] [i64 1, i64 2, i64 4], align 8
+@__block_literal_global.spirv = internal addrspace(1) constant { i32, i32, ptr addrspace(4) } { i32 16, i32 8, ptr addrspace(4) addrspacecast (ptr @__test_spirv_block_invoke to ptr addrspace(4)) }, align 8 #0
+
+; Function Attrs: convergent norecurse nounwind
+define spir_kernel void @test_spirv_enqueue_kernel(target("spirv.Queue") %queue) #1 {
+entry:
+  %ndrange = alloca %struct.ndrange_t, align 8
+  %local_sizes = alloca [1 x i64], align 8
+  store i64 32, ptr %local_sizes, align 8
+  %block_param = addrspacecast ptr addrspace(1) @__block_literal_global.spirv to ptr addrspace(4)
+  %result = call spir_func i32 @__spirv_EnqueueKernel(
+    target("spirv.Queue") %queue,
+    i32 0,
+    ptr %ndrange,
+    i32 0,
+    ptr addrspace(4) null,
+    ptr addrspace(4) null,
+    ptr addrspace(4) addrspacecast (ptr @__test_spirv_block_invoke_kernel to ptr addrspace(4)),
+    ptr addrspace(4) %block_param,
+    i32 1,
+    ptr %local_sizes)
+  ret void
+}
+
+define internal spir_func void @__test_spirv_block_invoke(ptr addrspace(4) %.block_descriptor) #5 {
+entry:
+  ret void
+}
+
+define internal spir_kernel void @__test_spirv_block_invoke_kernel(ptr addrspace(4) %.block_descriptor) #5 {
+entry:
+  ret void
+}
+
+declare spir_func i32 @__spirv_EnqueueKernel(target("spirv.Queue"), i32, ptr, i32, ptr addrspace(4), ptr addrspace(4), ptr addrspace(4), ptr addrspace(4), i32, ptr)
 @__block_literal_global = internal addrspace(1) constant { i32, i32, ptr addrspace(4) } { i32 16, i32 8, ptr addrspace(4) addrspacecast (ptr @__device_side_enqueue_block_invoke to ptr addrspace(4)) }, align 8 #0
 @__block_literal_global.1 = internal addrspace(1) constant { i32, i32, ptr addrspace(4) } { i32 16, i32 8, ptr addrspace(4) addrspacecast (ptr @__device_side_enqueue_block_invoke_4 to ptr addrspace(4)) }, align 8 #0
 @__block_literal_global.2 = internal addrspace(1) constant { i32, i32, ptr addrspace(4) } { i32 16, i32 8, ptr addrspace(4) addrspacecast (ptr @__device_side_enqueue_block_invoke_5 to ptr addrspace(4)) }, align 8 #0
