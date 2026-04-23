@@ -1,8 +1,8 @@
-; RUN: llc -O0 -mtriple=spirv64-- %s -o - | FileCheck %s
-; RUN: %if spirv-tools %{ llc -O0 -mtriple=spirv64-- %s -o - -filetype=obj | spirv-val %}
+; RUN: llc -verify-machineinstrs -O0 -mtriple=spirv64-- %s -o - | FileCheck %s
+; RUN: %if spirv-tools %{ llc -verify-machineinstrs -O0 -mtriple=spirv64-- %s -o - -filetype=obj | spirv-val %}
 
-; RUN: llc -O0 -mtriple=spirv32-- %s -o - | FileCheck %s
-; RUN: %if spirv-tools %{ llc -O0 -mtriple=spirv32-- %s -o - -filetype=obj | spirv-val %}
+; RUN: llc -verify-machineinstrs -O0 -mtriple=spirv32-- %s -o - | FileCheck %s
+; RUN: %if spirv-tools %{ llc -verify-machineinstrs -O0 -mtriple=spirv32-- %s -o - -filetype=obj | spirv-val %}
 
 ;; Check that 'store atomic' LLVM IR instructions are lowered.
 ;; NOTE: The current lowering is incorrect: 'store atomic' should produce
