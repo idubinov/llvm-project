@@ -1080,6 +1080,19 @@ Value *CodeGenFunction::EmitAMDGPUBuiltinExpr(unsigned BuiltinID,
         cast<DeclRefExpr>(E->getArg(0))->getReferencedDeclOfCallee());
     StringRef RF =
         getContext().BuiltinInfo.getRequiredFeatures(FD->getBuiltinID());
+    // A builtin with no required target features is invocable on every AMDGCN
+    // processor, so the predicate is unconditionally true. This mirrors the
+    // concrete-target behaviour of Builtin::evaluateRequiredTargetFeatures(),
+    // which returns true for an empty required-features string. Emitting a
+    // named boolean specialisation constant here instead would create a
+    // degenerate "has." predicate (empty feature name) whose value is left to
+    // the SPIR-V consumer to resolve; that resolution is processor-dependent
+    // and has been observed to differ across GPUs (e.g. it defaults to false
+    // on gfx942), silently dropping the guarded code -- including the
+    // __syncthreads()/fence emitted by __work_group_barrier -- which breaks
+    // cooperative_groups block synchronization. See ROCm/llvm-project#3143.
+    if (RF.empty())
+      return Builder.getTrue();
     return GetAMDGPUPredicate(*this, "has." + RF);
   }
   case AMDGPU::BI__builtin_amdgcn_read_exec:
