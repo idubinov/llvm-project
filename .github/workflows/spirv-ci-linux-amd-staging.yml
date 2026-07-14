@@ -655,7 +655,7 @@ jobs:
           LD_LIBRARY_PATH: ${{ github.workspace }}/${{ env.STAGING }}/lib
         run: |
           ctest --test-dir examples-build-Applications --output-on-failure -j $(nproc) \
-            -E '^(applications_optical_flow|applications_monte_carlo_pi)$' # TODO: ISSUE #3143
+            -E '^(applications_monte_carlo_pi)$' # TODO: ISSUE #3143
 
       # Libraries.
       - name: ROCm Examples build Libraries
