@@ -249,10 +249,11 @@ jobs:
             -DCMAKE_HIP_COMPILER=$PWD/$LLVM_BUILD/bin/clang++ \
             -DCMAKE_PREFIX_PATH="$PWD/$STAGING;$PWD/$LLVM_BUILD" \
             -DCMAKE_INSTALL_PREFIX=$PWD/$STAGING \
-            -DAMDGPU_TARGETS="gfx942" \
+            -DAMDGPU_TARGETS="amdgcnspirv" \
             -DBUILD_TEST=OFF \
             -DBUILD_BENCHMARK=OFF \
-            -DCMAKE_HIP_FLAGS="--rocm-path=$PWD/$STAGING"
+            -DCMAKE_CXX_FLAGS="--rocm-path=$PWD/$STAGING --offload-new-driver -use-spirv-backend" \
+            -DCMAKE_HIP_FLAGS="--rocm-path=$PWD/$STAGING --offload-new-driver -use-spirv-backend"
           ninja -C "$ROCRAND_BUILD"
           cmake --install "$ROCRAND_BUILD" --prefix $PWD/$STAGING
 
@@ -684,4 +685,4 @@ jobs:
           LD_LIBRARY_PATH: ${{ github.workspace }}/${{ env.STAGING }}/lib
         run: |
           ctest --test-dir examples-build-Libraries --output-on-failure -j $(nproc) \
-            -E '^(hiprand_simple_distributions_cpp|rocrand_simple_distributions_cpp)$' # TODO: ISSUE #3143
+            -E '^hiprand_simple_distributions_cpp$' # TODO: ISSUE #3143
