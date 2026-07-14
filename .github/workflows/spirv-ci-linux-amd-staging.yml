@@ -243,13 +243,23 @@ jobs:
       - name: Configure and build rocRAND
         env:
           ROCM_PATH: ${{ github.workspace }}/${{ env.STAGING }}
+        # Build rocRAND for amdgcnspirv (not a fixed gfxNNN). The rocm-examples
+        # are compiled with -DCMAKE_HIP_ARCHITECTURES=amdgcnspirv and dispatch
+        # rocRAND device kernels from librocrand.so. An AOT-only rocRAND
+        # (e.g. gfx942) has no code object the SPIR-V runtime can resolve/JIT
+        # for the running GPU, so hiprandGenerateUniform / distribution kernel
+        # launches return hipErrorInvalidImage ("No compatible code objects
+        # found"). Building rocRAND as amdgcnspirv embeds a SPIR-V code object
+        # that is JIT-compiled to the test runner's arch at load time, matching
+        # the app. Fixes ISSUE #3143 (applications_monte_carlo_pi and the
+        # *rand_simple_distributions examples share this root cause).
         run: |
           cmake -G Ninja -S rocRAND -B "$ROCRAND_BUILD" \
             -DCMAKE_CXX_COMPILER=$PWD/$LLVM_BUILD/bin/clang++ \
             -DCMAKE_HIP_COMPILER=$PWD/$LLVM_BUILD/bin/clang++ \
             -DCMAKE_PREFIX_PATH="$PWD/$STAGING;$PWD/$LLVM_BUILD" \
             -DCMAKE_INSTALL_PREFIX=$PWD/$STAGING \
-            -DAMDGPU_TARGETS="gfx942" \
+            -DAMDGPU_TARGETS="amdgcnspirv" \
             -DBUILD_TEST=OFF \
             -DBUILD_BENCHMARK=OFF \
             -DCMAKE_HIP_FLAGS="--rocm-path=$PWD/$STAGING"
@@ -655,7 +665,7 @@ jobs:
           LD_LIBRARY_PATH: ${{ github.workspace }}/${{ env.STAGING }}/lib
         run: |
           ctest --test-dir examples-build-Applications --output-on-failure -j $(nproc) \
-            -E '^(applications_optical_flow|applications_monte_carlo_pi)$' # TODO: ISSUE #3143
+            -E '^(applications_optical_flow)$' # TODO: ISSUE #3143
 
       # Libraries.
       - name: ROCm Examples build Libraries
