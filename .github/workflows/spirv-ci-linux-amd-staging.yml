@@ -244,15 +244,29 @@ jobs:
         env:
           ROCM_PATH: ${{ github.workspace }}/${{ env.STAGING }}
         run: |
+          # Build rocRAND's device kernels for amdgcnspirv, matching the
+          # offload arch used to compile the rocm-examples (see
+          # CMAKE_HIP_ARCHITECTURES=amdgcnspirv in the example build steps
+          # below). librocrand.so exposes device kernels that the examples
+          # launch via the hipRAND/rocRAND host API. If the library is built
+          # AOT for a fixed gfx target (previously gfx942) but the app is
+          # compiled to amdgcnspirv, the launch fails at runtime with
+          # hipErrorInvalidImage / "No compatible code objects found" because
+          # the library fat binary carries no code object usable on the test
+          # device (and no SPIR-V object to JIT). Building rocRAND to
+          # amdgcnspirv embeds a SPIR-V code object that the HIP runtime
+          # JIT-compiles for whatever device runs the tests. See ROCm/llvm-project#3143.
           cmake -G Ninja -S rocRAND -B "$ROCRAND_BUILD" \
             -DCMAKE_CXX_COMPILER=$PWD/$LLVM_BUILD/bin/clang++ \
             -DCMAKE_HIP_COMPILER=$PWD/$LLVM_BUILD/bin/clang++ \
             -DCMAKE_PREFIX_PATH="$PWD/$STAGING;$PWD/$LLVM_BUILD" \
             -DCMAKE_INSTALL_PREFIX=$PWD/$STAGING \
-            -DAMDGPU_TARGETS="gfx942" \
+            -DAMDGPU_TARGETS="amdgcnspirv" \
+            -DCMAKE_HIP_ARCHITECTURES="amdgcnspirv" \
             -DBUILD_TEST=OFF \
             -DBUILD_BENCHMARK=OFF \
-            -DCMAKE_HIP_FLAGS="--rocm-path=$PWD/$STAGING"
+            -DCMAKE_HIP_FLAGS="--rocm-path=$PWD/$STAGING --offload-new-driver -use-spirv-backend" \
+            -DCMAKE_CXX_FLAGS="--rocm-path=$PWD/$STAGING --offload-new-driver -use-spirv-backend"
           ninja -C "$ROCRAND_BUILD"
           cmake --install "$ROCRAND_BUILD" --prefix $PWD/$STAGING
 
@@ -684,4 +698,4 @@ jobs:
           LD_LIBRARY_PATH: ${{ github.workspace }}/${{ env.STAGING }}/lib
         run: |
           ctest --test-dir examples-build-Libraries --output-on-failure -j $(nproc) \
-            -E '^(hiprand_simple_distributions_cpp|rocrand_simple_distributions_cpp)$' # TODO: ISSUE #3143
+            -E '^(rocrand_simple_distributions_cpp)$' # TODO: ISSUE #3143
